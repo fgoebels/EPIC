@@ -19,10 +19,16 @@ def main():
 	elutionData = CalcS.ElutionData(elutionFile)
 	refProts = set(elutionData.prot2Index.keys())
 
-	inparanoid = Inparanoid(targetSpecies, foundProts = refProts)
+	inparanoid = ""
+	if targetSpecies != "9606":
+		inparanoid = Inparanoid(targetSpecies, foundProts = refProts)
 	gos = QuickGO(targetSpecies)
 	corum = CORUM()
 	reference = Goldstandard_from_CORUM(corum, inparanoid, ratio=1, found_prots = refProts)
+	print len(reference.goldstandard_positive)
+	print len(reference.goldstandard_negative)
+	print reference.goldstandard_positive
+#	print reference.goldstandard_negative
 
 # @author Florian Goebels
 # Class for creating reference set from CORUM
@@ -34,15 +40,16 @@ class Goldstandard_from_CORUM():
 	#		orthmap Inparanoid object for mapping Human CORUM complexes to target species
 	#		ratio ratio for negative to postivie with |negative| = ratio * |positive|
 	#		found_prots proteins identified via MS cofractionation either as list
-	def __init__(self, complexes, orthmap, ratio = 5, found_prots = ""):
+	def __init__(self, complexes, orthmap="", ratio = 5, found_prots = ""):
 		self.complexes = complexes
-		self.orthmap = orthmap
 		self.ratio = ratio
 		self.found_prots = found_prots
 		self.goldstandard_positive = set([])
 		self.goldstandard_negative = set([])
 		self.getPositiveAndNegativeInteractions()
-		self.mapReferenceData()
+		if orthmap != "":
+			self.orthmap = orthmap
+			self.mapReferenceData()
 		self.makeReferenceDataSet()
 
 	# @author Florian Goebels
@@ -66,8 +73,16 @@ class Goldstandard_from_CORUM():
 		self.goldstandard_negative = self.orthmap.mapEdges(self.goldstandard_negative)
 	
 	# @author Florian Goebels
-	# creates reference data set with lable information and set ration of positive and negative protein interactions 
+	# creates reference data set with lable information and set ration of positive and negative protein interactions
 	def makeReferenceDataSet(self):
+		def remove_not_found_prots(protlist, foundprots):
+			out = set([])
+			for (protA, protB) in protlist:
+				if protA not in foundprots or protB not in foundprots: continue
+				out.add((protA, protB))
+			return out
+		self.goldstandard_positive = remove_not_found_prots(self.goldstandard_positive, self.found_prots)
+		self.goldstandard_negative = remove_not_found_prots(self.goldstandard_negative, self.found_prots)
 		reference = set([])
 		pos = set([])
 		neg = set([])

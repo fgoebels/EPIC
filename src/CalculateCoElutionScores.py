@@ -21,10 +21,15 @@ from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 import inspect
 import os
+import time
 from sklearn import svm
 from sklearn import datasets
 from sklearn import metrics
 import random
+#import pathos.multiprocessing as mp
+#import pathos.pp as pp
+import multiprocessing as mp
+from functools import partial
 import GoldStandard as GS
 
 subfldr = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"TCSS")))
@@ -35,12 +40,10 @@ from main import load_semantic_similarity, calculate_semantic_similarity
 #Contacts:
 #	Florian Goebels - florian.goebels@gmail.com
 #
-
 # @author: Florian Goebels
 # This class stores and maintains co elution data
 # It stores both the raw and normalizied co-elution data
 class ElutionData():
-	
 	# @author: Florian Goebels
 	# Class constructor
 	# @Param:
@@ -53,8 +56,8 @@ class ElutionData():
 		self.elutionMat, self.prot2Index  = self.loadElutionData(elutionProfileF)
 		self.normedElutionMat = normalize_fracs(self.elutionMat)
 		self.elutionMat = np.array(self.elutionMat)
+		
 
-	
 	# @author: Florian Goebels
 	# this methods load elution data stored as a flat file and returns the read in matrix and an index pointing each protein to it's rwo index
 	# @Param:
@@ -332,8 +335,17 @@ class Jaccard():
 			return j11/(j11+j01)
 		else:
 			return 0
+
 # @ author Florian Goebels
 # return Pearson correlation of two proteins
+
+
+def calculateScore_Pearson(a,b):
+	score = scipy.stats.pearsonr(a, b)[0]
+	if math.isnan(score): return 0.0
+	return scipy.stats.pearsonr(a, b)[0]
+
+
 class Pearson:
 	def __init__(self):
 		self.name = "Pearson"
@@ -341,11 +353,8 @@ class Pearson:
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
-
-	def calculateScore(self, a,b):
-		score = scipy.stats.pearsonr(a, b)[0]
-		if math.isnan(score): return 0.0
-		return scipy.stats.pearsonr(a, b)[0]
+	
+	calculateScore = staticmethod(calculateScore_Pearson)
 
 # @ author Florian Goebels
 # returns Euclidean distance of two proteins
@@ -353,11 +362,20 @@ class Euclidiean:
 	def __init__(self):
 		self.name = "Euclidiean"
 
+
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a, normed=True), elutionData.getElution(b, normed=True))
 
 	def calculateScore(self, a,b):
 		return 1-distance.euclidean(a,b)
+
+def getScore(scoreFun, profileA, profileB, protnames):
+	score = scoreFun(profileA, profileB)
+	return (protnames, score)
+
+def worker(task):
+	fun , args = task
+	return fun(*args)
 
 # @ author Florian Goebels
 # This is a helper class for calculating co elution scores for a given ElutionData object
@@ -391,7 +409,7 @@ class CalculateCoElutionScores():
 
 	# @author: Florian Goebels
 	# returns a list with all possible pairs of protein interactions for a given ElutionData object
-	def getAllPairs(self):
+	def getAllPairs(self, ref):
 		allprots = self.elutionData.prot2Index.keys()
 		allPPIs = set([])
 		for i in range(len(allprots)):
@@ -399,19 +417,19 @@ class CalculateCoElutionScores():
 				protA = allprots[i]
 				protB = allprots[j]
 				if protA == protB: continue
-				if protA > protB:
-					allPPIs.add((protA, protB, "?"))
-				else:
-					allPPIs.add((protB, protA, "?"))
-					
+				protA, protB = sorted([protA, protB])
+				label = "?"
+				for label_type in ["positive", "positive"]:
+					if (protA, protB, label_type) in ref: label = label_type
+				allPPIs.add((protA, protB, label))
 		return list(allPPIs)
 
 	# @author: Florian Goebels
 	# calculates all given scores for all possible interactions of a given ElutionData object
 	# @Param:
 	#		scores a list of scores to calculate
-	def calculateAllPairs(self, scores):
-		allprots = self.getAllPairs()
+	def calculateAllPairs(self, scores, ref):
+		allprots = self.getAllPairs(ref)
 		self.calculateAllScores(scores, allprots)		
 
 	# @author: Florian Goebels
@@ -422,15 +440,28 @@ class CalculateCoElutionScores():
 	def calculateAllScores(self, scoreTypes, PPIs):
 		for scoreType in scoreTypes:
 			self.header = np.append(self.header, scoreType.name)
-		for protA, protB, label in PPIs:
-			if (protA, protB, label) not in self.scores: self.scores[(protA, protB, label)] = []
-			if not self.elutionData.hasProt(protA) or not self.elutionData.hasProt(protB):
-				self.scores[(protA, protB, label)] = np.append(self.scores[(protA, protB, label)], 0)
-				continue
-			for scoreType in scoreTypes:
-				profileA, profileB = scoreType.getScores(protA, protB, self.elutionData)
-				self.scores[(protA, protB, label)] = np.append(self.scores[(protA, protB, label)], scoreType.calculateScore(profileA, profileB))
-
+		for st in scoreTypes:
+			p = mp.Pool(4)
+			scores = []
+			tasks = []
+			results = []
+			for protA, protB, label in PPIs:
+				if (protA, protB, label) not in self.scores: self.scores[(protA, protB, label)] = []
+				if not self.elutionData.hasProt(protA) or not self.elutionData.hasProt(protB):
+					self.scores[(protA, protB, label)].append(0)
+					continue
+				profileA, profileB = st.getScores(protA, protB, self.elutionData)
+				task = (getScore, (st.calculateScore, profileA, profileB, (protA, protB, label)))
+				tasks.append(task)
+#			results = p.map_async(worker, tasks)
+#			results.wait()
+#			results = results.get()
+			results = p.map(worker, tasks)
+			for ppi, score in results:
+				if isinstance(score, list):
+					self.scores[ppi].extend(score)
+				else:
+					self.scores[ppi].append(score)	
 
 	# @author: Florian Goebels
 	# prints table
@@ -464,12 +495,14 @@ class CalculateCoElutionScores():
 	def toSklearnData(self):
 		data = []
 		targets = []
+		ids = []
 		for idA, idB, label in self.scores:
 			if label == "positive": targets.append(1)
 			if label == "negative": targets.append(0)
 			if label == "?": targets.append("?")
 			data.append(self.scores[(idA, idB, label)])
-		return np.nan_to_num(np.array(data)), np.array(targets)
+			ids.append(tuple([idA, idB]))
+		return ids, np.nan_to_num(np.array(data)), np.array(targets)
 
 # @ author Florian Goebels
 # wrapper for machine learning
@@ -573,8 +606,30 @@ def plotPRcurve(prcurves, outF):
 	plt.savefig(outF)
 
 # @author Florian Goebels
+# 
+def predictInteractions(taxid, elutionFile):
+	elutionData = ElutionData(elutionFile)
+	reference = createGoldStandard([elutionData])
+	scoreCalc = CalculateCoElutionScores(elutionData)
+#	scoreCalc.calculateAllPairs([MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr(3)], reference)
+	scoreCalc.calculateAllPairs([Pearson()], reference)
+	ids, data, targets = scoreCalc.toSklearnData()
+	clf = CLF_Wrapper(data, targets)
+	preds = clf.predict(data)
+	print len(ids)
+	print len(preds)
+	print len(preds[:,1])
+#	for i in range(len(ids)):
+#		print "%s\t%s\t%f" % (ids[i][0], ids[i][1], preds[i,1])
+	
+# @author Florian Goebels
 # filler main function 
 def main():
+	taxid, elutionF = sys.argv[1:]
+	predictInteractions(taxid, elutionF)
+
+
+def fubar():
 	refF, elutionFiles, outF = sys.argv[1:]
 	elutionFH = open(elutionFiles)
 	scoreCals = []
@@ -591,18 +646,20 @@ def main():
 #	change here which features you want to use for calculating co elution scores
 #	for score in [Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), MutualInformation(2)]:
 #	for score in [Bayes_corr(), Bayes_corr(2), Bayes_corr(3)]:
-	for score in [MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr(3)]:
+#	for score in [MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr(3)]:
+	for score in [Euclidiean()]:
 		for elutionD in elutionDatas:
 			scoreCalc = CalculateCoElutionScores(elutionD)
-			scoreCalc.calculateAllScores([score], reference)
-			scoreCals.append(scoreCalc)
+			scoreCalc.calculateAllScores([Euclidiean()])
+#			scoreCalc.calculateAllScores([score], reference)
+#			scoreCals.append(scoreCalc)
 			global_all_scoreCalc.append(scoreCalc)
 
 # This code plot each feature as PR curve individually
 #		all_scoreCalc = scoreCals[0]
 #		for i in range(1,len(scoreCals)):
 #			all_scoreCalc.mergeScoreCalc(scoreCals[i])
-#		data, targets = all_scoreCalc.toSklearnData()
+#		_, data, targets = all_scoreCalc.toSklearnData()
 #		clf = CLF_Wrapper(data, targets)
 #		print clf.getValScores()
 #		precision, recall, _ =  clf.getPRcurve()
@@ -612,7 +669,7 @@ def main():
 	for i in range(1, len(global_all_scoreCalc)):
 		all_scoreCalc.mergeScoreCalc(global_all_scoreCalc[i])
 
-	data, targets = all_scoreCalc.toSklearnData()	
+	_, data, targets = all_scoreCalc.toSklearnData()	
 	clf = CLF_Wrapper(data, targets)
 	print clf.getValScores()
 	precision, recall, _ =  clf.getPRcurve()
