@@ -1,0 +1,16 @@
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_BNF.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_CRF.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_0208.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_0427.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_0628.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_1111.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_1203.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_ups_0514.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_ups_1206.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsA.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsB.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsC.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsL.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsN.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsR.prot_count_uniqpeps_FDR0010.uniprot
+/Users/florian/workspace/EPIC/test/1D_WORM/Ce_beadsflow.prot_count_uniqpeps_FDR0010.uniprot

@@ -37,6 +37,17 @@ sys.path.append(subfldr)
 
 from main import load_semantic_similarity, calculate_semantic_similarity
 
+r=robjects.r
+r.source("src/Bayes_Corr.R")
+cor1 = robjects.r["Bayes_Corr_Prior1"]
+cor2 = robjects.r["Bayes_Corr_Prior2"]
+cor3 = robjects.r["Bayes_Corr_Prior3"]
+
+rpackages.importr('wccsom')
+r_wcc = robjects.r['wcc']
+
+
+
 #Contacts:
 #	Florian Goebels - florian.goebels@gmail.com
 #
@@ -156,9 +167,9 @@ def normalize_fracs(arr, norm_rows=True, norm_cols=True):
 class GOSim(object):
 
 	objs = "" 
-	
 	def __init__(self, gene_anno_F, onto_F):
 		self.name = ["Sim_CC", "Sim_BP", "Sim_MF"]
+		self.parallel = False
 #		if GOSim.objs == "":
 #			GOSim.objs = load_semantic_similarity(onto_F, gene_anno_F, "C:2.4,P:3.5,F:3.3", "IEA")
 
@@ -177,76 +188,74 @@ class GOSim(object):
 # @ author Florian Goebels
 # returns apex similarity score which is based on previously published methods Pierre 2011 et al.
 # returns 0 or 1 depending if the highest count peak of two proteins are in the same fraction or not
+def calculateScore_apex(a,b):
+	if a == b:
+		return 1
+	else:
+		return 0
+
 class Apex(object):
 	def __init__(self):
 		self.name="apex"
+		self.parallel = True
 
 	def getScores(self, a, b, elutionData):
-		return (elutionData.getElution(a), elutionData.getElution(b))
+		return (np.argmax(elutionData.getElution(a)), np.argmax(elutionData.getElution(b)))
 
-
-	def setAll(self, elution):
-		self.apex_array = np.argmax(elution, axis=1)
-		self.shape = (len(self.apex_array),len(self.apex_array))
-
-	def calculateScore(self,a,b):
-		self.setAll(np.array([a,b]))
-		return self.apex_scores_toarray_fast()[0][1]
-
-	def __getitem__(self, index):
-		 return int(self.apex_array[index[0]] == self.apex_array[index[1]])
-
-	def apex_scores_toarray_fast(smat):
-		dmaxes = defaultdict(set)
-		for row, mx in enumerate(smat.apex_array):
-			dmaxes[mx].add(row)
-		arr = np.zeros(smat.shape)
-		for mx,rows in dmaxes.items():
-			for r1,r2 in itertools.permutations(rows,2):
-				arr[r1,r2] = 1
-		return arr
+	calculateScore = staticmethod(calculateScore_apex)
 
 # @ author Florian Goebels
 # returns bayes correlation for two proteins
 # reference on how the score is calculated is here: http://www.perkinslab.ca/sites/perkinslab.ca/files/Bayes_Corr.R
+
+def calculateScoreBayes(a,b):
+	global cor1
+	global cor2
+	global cor3
+	dims = np.matrix([a,b]).shape
+	r_cro_mat_object = robjects.r.matrix(robjects.IntVector(np.append(a, b)), nrow=dims[1], ncol = dims[0])
+	r_cro_mat = r_cro_mat_object.transpose()
+	return [cor1(r_cro_mat)[1], cor2(r_cro_mat)[1], cor3(r_cro_mat)[1]]
+	
 class Bayes_corr:
 	def __init__(self, corNum = 1):
-		r=robjects.r
-		r.source("src/Bayes_Corr.R")
-		corFunName = "Bayes_Corr_Prior%i" % (corNum)
-		self.name = corFunName
-		self.corFun = robjects.r[corFunName]
+		self.name = ["Bayes1", "Bayes2", "Bayes3"]
+		self.parallel = True
 	
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
-	def calculateScore(self, a,b):
-		dims = np.matrix([a,b]).shape
-		r_cro_mat_object = robjects.r.matrix(robjects.IntVector(np.append(a, b)), nrow=dims[1], ncol = dims[0])
-		return self.corFun(r_cro_mat_object.transpose())[1]
+	calculateScore = staticmethod(calculateScoreBayes)
 
 # @ author Florian Goebels
 # returns weighted cross correlation similarity score which is based on previously published methods Pierre 2011 et al.
+def calculateScore_wcc(a,b):
+	global r_wcc
+	return r_wcc(robjects.FloatVector(a), robjects.FloatVector(b), 20)[0]
+
 class Wcc:
 	def __init__(self):
 		self.name="wcc"
+		self.parallel = True
 
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
-	def calculateScore(self, a,b):
-		rpackages.importr('wccsom')
-		r_wcc = robjects.r['wcc']
-		return r_wcc(robjects.FloatVector(a), robjects.FloatVector(b), 20)[0]
+	calculateScore = staticmethod(calculateScore_wcc)
 
 
 # @ author Florian Goebels
 # returns travor correlation which is pearson correlation plus poisson noise to remove the influence of low counts
+def calculateScore_PCCPN(a,b):
+	corrs = map(lambda x : scipy.stats.pearsonr(a[x], b[x])[0], range(len(a)))
+	return sum(corrs)/len(corrs)
+
 class Poisson:
 	def __init__(self, repeat=100):
 		self.name="poisson-%i" % (repeat)
 		self.repeat=repeat
 		self.noiseMats = []
+		self.parallel = True
 
 	def getScores(self, a, b, elutionData):
 		if len(self.noiseMats)> 0 and elutionData.elutionMat.shape != self.noiseMats[0].shape:
@@ -255,16 +264,16 @@ class Poisson:
 		if len(self.noiseMats)<self.repeat:
 			for i in range(self.repeat):
 				self.noiseMats.append(self.makenoisyMat(elutionData.elutionMat))
-		return (elutionData.getProtIndex(a), elutionData.getProtIndex(b))
-
-	def calculateScore(self, a,b):
-		out = []
+		indexA = elutionData.getProtIndex(a)
+		indexB = elutionData.getProtIndex(b)
+		outA = []
+		outB = []
 		for mat in self.noiseMats:
-			profile_a = mat[a].getA1()
-			profile_b = mat[b].getA1()
-			mat_correlation = scipy.stats.pearsonr(profile_a, profile_b)[0]
-			out.append(mat_correlation)
-		return sum(out)/len(out)
+			outA.append(mat[indexA].getA1())
+			outB.append(mat[indexB].getA1())
+		return (outA, outB)
+
+	calculateScore = staticmethod(calculateScore_PCCPN)
 
 	def makenoisyMat(self, mat):
 		M = mat.shape[1]
@@ -280,61 +289,71 @@ class Poisson:
 # returns Mutual Information of two proteins
 # mutual information is based on entropy calculation MI(x,y) = H(x) + H(y) - H(x,y) 
 # wehre H means entropy
+
+
+minCounts = 2
+def calculateScore_MI( a, b):
+	numFracs = len(a)
+	(a_upper, a_lower) = getFracs(a, minCounts)
+	(b_upper, b_lower) = getFracs(b, minCounts)
+	entropy_a = bin_entropy(len(a_upper)/numFracs)
+	entropy_b = bin_entropy(len(b_upper)/numFracs)
+	joint_probs = np.array(map(lambda x: len(x)/numFracs, [a_upper&b_upper, a_upper&b_lower, a_lower&b_upper, a_lower&b_lower]))
+	joint_entropy_a_b = entropy(joint_probs, 2)
+	mutual_information =  entropy_a  + entropy_b - joint_entropy_a_b
+	return mutual_information
+
+def bin_entropy(p):
+	return entropy(np.array([p,1-p]))
+
+def entropy(probs, base=0):
+	if base ==0: base = len(probs)
+	tmp_probs = probs
+	tmp_probs[tmp_probs==0] = 1
+	return -sum(probs*map(lambda x: math.log(x,base), tmp_probs))
+
+def getFracs( a, cutoff):
+	upper = set([i for i,v in enumerate(a) if v > cutoff])
+	lower = set([i for i,v in enumerate(a) if v <= cutoff])
+	return (upper, lower)
+
 class MutualInformation():
-	def __init__(self, minCounts = 2):
+	def __init__(self, minCounts_new = 2):
 		self.name="MI"
-		self.minCounts = minCounts
+		global minCounts
+		minCounts = minCounts_new
+		self.parallel = True
 	
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
-	def calculateScore(self, a, b):
-		numFracs = len(a)
-		(a_upper, a_lower) = self.getFracs(a, self.minCounts)
-		(b_upper, b_lower) = self.getFracs(b, self.minCounts)
-		entropy_a = self.bin_entropy(len(a_upper)/numFracs)
-		entropy_b = self.bin_entropy(len(b_upper)/numFracs)
-		joint_probs = np.array(map(lambda x: len(x)/numFracs, [a_upper&b_upper, a_upper&b_lower, a_lower&b_upper, a_lower&b_lower]))
-		joint_entropy_a_b = self.entropy(joint_probs, 2)
-		mutual_information =  entropy_a  + entropy_b - joint_entropy_a_b
-		return mutual_information
+	calculateScore = staticmethod(calculateScore_MI)
 
-	def bin_entropy(self, p):
-		return self.entropy(np.array([p,1-p]))
-
-	def entropy(self, probs, base=0):
-		if base ==0: base = len(probs)
-		tmp_probs = probs
-		tmp_probs[tmp_probs==0] = 1
-		return -sum(probs*map(lambda x: math.log(x,base), tmp_probs))
-
-	def getFracs(self, a, cutoff):
-		upper = set([i for i,v in enumerate(a) if v > cutoff])
-		lower = set([i for i,v in enumerate(a) if v <= cutoff])
-		return (upper, lower)
 # @ author Florian Goebels
 # calculates Jaccard overlap score which is as follows
 # Jaccard(x,y) = sum(x!=1 and y!=1)/(sum(x!=1) + sum(y!=1))
+def calculateScore_Jaccard(a_non_zero_fracs,b_non_zero_fracs):
+	a_and_b_non_zero_fracs = len(a_non_zero_fracs & b_non_zero_fracs)
+	a_or_b_non_zero_fracs = len(a_non_zero_fracs | b_non_zero_fracs)
+	if a_or_b_non_zero_fracs == 0:
+		return 0
+	else:
+		return a_and_b_non_zero_fracs/a_or_b_non_zero_fracs
+
 class Jaccard():
         def __init__(self):
                 self.name="Jaccard"
+		self.non_zero_fracs_for_prot = {}
+		self.parallel = True
 
 	def getScores(self, a, b, elutionData):
-		return (elutionData.getElution(a), elutionData.getElution(b))
+		for prot in [a,b]:
+			if prot not in self.non_zero_fracs_for_prot:
+				self.non_zero_fracs_for_prot[prot] = set(np.nonzero(elutionData.getElution(prot))[0])
+		return (self.non_zero_fracs_for_prot[a],self.non_zero_fracs_for_prot[b])
 
-	def calculateScore(self, a,b):
-		j11 = 0
-		j01 = 0
-		for i in range(len(a)):
-			if a[i] == 0 and b[i]==0: continue
-			if a[i] > 0 and b[i] > 0 :
-				j11 += 1
-			else:
-				j01 += 1
-		if j11+j01 > 0:
-			return j11/(j11+j01)
-		else:
-			return 0
+	calculateScore = staticmethod(calculateScore_Jaccard)
+
 
 # @ author Florian Goebels
 # return Pearson correlation of two proteins
@@ -349,6 +368,7 @@ def calculateScore_Pearson(a,b):
 class Pearson:
 	def __init__(self):
 		self.name = "Pearson"
+		self.parallel = True
 
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
@@ -358,16 +378,19 @@ class Pearson:
 
 # @ author Florian Goebels
 # returns Euclidean distance of two proteins
+def calculateScore_euclidean(a,b):
+	return 1-distance.euclidean(a,b)
+
 class Euclidiean:
 	def __init__(self):
 		self.name = "Euclidiean"
+		self.parallel = True
 
 
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a, normed=True), elutionData.getElution(b, normed=True))
 
-	def calculateScore(self, a,b):
-		return 1-distance.euclidean(a,b)
+	calculateScore = staticmethod(calculateScore_euclidean)
 
 def getScore(scoreFun, profileA, profileB, protnames):
 	score = scoreFun(profileA, profileB)
@@ -395,8 +418,8 @@ class CalculateCoElutionScores():
 	# @Param:
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined tiwth self object
 	def mergeScoreCalc(self, toMerge):
-		numFeature_in_merge = len(toMerge.scores[toMerge.scores.keys()[0]])
-		numFeature_in_self = len(self.scores[self.scores.keys()[0]])
+		numFeature_in_merge = len(toMerge.header)-2
+		numFeature_in_self = len(self.header)-2
 		for edge in toMerge.scores:
 			if edge in self.scores:
 				self.scores[edge] = np.append(self.scores[edge], toMerge.scores[edge])
@@ -406,6 +429,20 @@ class CalculateCoElutionScores():
 			if edge not in toMerge.scores:
 				self.scores[edge] = np.append(self.scores[edge], np.array([0]*numFeature_in_merge))
 
+	#
+	#
+	@staticmethod
+	def filter_interactions_Jaccard(elutionData, ppis):
+		thisCS = CalculateCoElutionScores(elutionData)
+		thisCS.calculateAllScores([Jaccard()], ppis)
+		toDel = set([])
+		for edge in thisCS.scores:
+			if edge[2] != "?": continue #only remove prediction label not positive or negative label name
+			jaccardScore = thisCS.scores[edge][-1]
+			if jaccardScore == 0.0:
+				toDel.add(edge)
+		out = set(ppis) - toDel
+		return list(out)	
 
 	# @author: Florian Goebels
 	# returns a list with all possible pairs of protein interactions for a given ElutionData object
@@ -430,6 +467,7 @@ class CalculateCoElutionScores():
 	#		scores a list of scores to calculate
 	def calculateAllPairs(self, scores, ref):
 		allprots = self.getAllPairs(ref)
+		allprots = CalculateCoElutionScores.filter_interactions_Jaccard(self.elutionData, allprots)
 		self.calculateAllScores(scores, allprots)		
 
 	# @author: Florian Goebels
@@ -438,17 +476,22 @@ class CalculateCoElutionScores():
 	#		scoreTypes	a list of co elutoin score objects
 	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
 	def calculateAllScores(self, scoreTypes, PPIs):
-		for scoreType in scoreTypes:
-			self.header = np.append(self.header, scoreType.name)
 		for st in scoreTypes:
-			p = mp.Pool(4)
+			name = st.name
+			numScores = 1
+			if isinstance(name, list):
+				self.header.extend(name)
+				numScores = len(name)
+			else:
+				self.header.append(name)
 			scores = []
 			tasks = []
 			results = []
 			for protA, protB, label in PPIs:
 				if (protA, protB, label) not in self.scores: self.scores[(protA, protB, label)] = []
 				if not self.elutionData.hasProt(protA) or not self.elutionData.hasProt(protB):
-					self.scores[(protA, protB, label)].append(0)
+					
+					self.scores[(protA, protB, label)].extend([0]*numScores)
 					continue
 				profileA, profileB = st.getScores(protA, protB, self.elutionData)
 				task = (getScore, (st.calculateScore, profileA, profileB, (protA, protB, label)))
@@ -456,7 +499,13 @@ class CalculateCoElutionScores():
 #			results = p.map_async(worker, tasks)
 #			results.wait()
 #			results = results.get()
-			results = p.map(worker, tasks)
+			if st.parallel == True:
+				p = mp.Pool(4)
+				results = p.map(worker, tasks)
+				p.close()
+				p.join()
+			else:
+				results = map(worker, tasks)
 			for ppi, score in results:
 				if isinstance(score, list):
 					self.scores[ppi].extend(score)
@@ -583,10 +632,32 @@ def createGoldStandard(elutionData, ratio=5, targetSpecies = "6239"):
 	gos = GS.QuickGO(targetSpecies)
 	corum = GS.CORUM()
 	reference = GS.Goldstandard_from_CORUM(corum, inparanoid, ratio=5, found_prots = protsWithElutionProfile)
-	print len(reference.goldstandard_positive)
-	print len(reference.goldstandard_negative)
-	print len(reference.goldstandard)
 	return reference.goldstandard
+
+def createGoldStandard_alt(refF, elutionData, ratio=5):
+        positive = set([])
+        negative = set([])
+        protsWithElutionProfile = set([])
+        for data in elutionData:
+                protsWithElutionProfile = protsWithElutionProfile | set(data.prot2Index.keys())
+        reference = set([])
+        goldstandardFH = open(refF)
+        for line in goldstandardFH:
+                line = line.rstrip()
+                (tmpidA, tmpidB, label) = line.split("\t")
+                if tmpidA not in protsWithElutionProfile or tmpidB not in protsWithElutionProfile: continue
+                idA, idB = sorted([tmpidA, tmpidB])
+                if label == "positive": positive.add((idA, idB, label))
+                if label == "negative": negative.add((idA, idB, label))
+
+        if len(positive)*ratio>len(negative):
+                print "Warning: not enough negative data points in reference to create desired ratio"
+                return positive | negative
+
+        print len(positive)
+        print len(negative)
+        reference = positive | set(random.sample(negative, len(positive)*ratio))
+        return reference
 
 # @author: Florian Goebels
 # makes precision recall plot for mutliple rp ccurves
@@ -607,30 +678,28 @@ def plotPRcurve(prcurves, outF):
 
 # @author Florian Goebels
 # 
-def predictInteractions(taxid, elutionFile):
+def predictInteractions(taxid, elutionFile, outF):
 	elutionData = ElutionData(elutionFile)
 	reference = createGoldStandard([elutionData])
 	scoreCalc = CalculateCoElutionScores(elutionData)
-#	scoreCalc.calculateAllPairs([MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr(3)], reference)
-	scoreCalc.calculateAllPairs([Pearson()], reference)
+	scoreCalc.calculateAllPairs([MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr()], reference)
+#	scoreCalc.calculateAllPairs([Apex()], reference)
 	ids, data, targets = scoreCalc.toSklearnData()
-	clf = CLF_Wrapper(data, targets)
-	preds = clf.predict(data)
-	print len(ids)
-	print len(preds)
-	print len(preds[:,1])
-#	for i in range(len(ids)):
-#		print "%s\t%s\t%f" % (ids[i][0], ids[i][1], preds[i,1])
+#	clf = CLF_Wrapper(data, targets)
+#	preds = clf.predict(data)
+	outFH = open(outF, "w")
+	outFH.write(scoreCalc.toTable())
+	outFH.close()
 	
 # @author Florian Goebels
 # filler main function 
 def main():
-	taxid, elutionF = sys.argv[1:]
-	predictInteractions(taxid, elutionF)
-
-
-def fubar():
+#	taxid, elutionF, outF = sys.argv[1:]
+#	predictInteractions(taxid, elutionF, outF)
 	refF, elutionFiles, outF = sys.argv[1:]
+	bench_scores(refF, elutionFiles, outF)
+
+def bench_scores(refF, elutionFiles, outF):
 	elutionFH = open(elutionFiles)
 	scoreCals = []
 	elutionDatas = []
@@ -640,32 +709,33 @@ def fubar():
 		elutionData = ElutionData(elutionFile)
 		elutionDatas.append(elutionData)
 
-	reference = createGoldStandard(elutionDatas)
+	reference = createGoldStandard_alt(refF, elutionDatas)
 	out = []
 	global_all_scoreCalc = []
 #	change here which features you want to use for calculating co elution scores
-#	for score in [Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), MutualInformation(2)]:
-#	for score in [Bayes_corr(), Bayes_corr(2), Bayes_corr(3)]:
-#	for score in [MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr(3)]:
-	for score in [Euclidiean()]:
+#	for score in [Poisson(10)]:
+	for score in [MutualInformation(2), Bayes_corr(), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10)]:
+		print score.name
 		for elutionD in elutionDatas:
 			scoreCalc = CalculateCoElutionScores(elutionD)
-			scoreCalc.calculateAllScores([Euclidiean()])
-#			scoreCalc.calculateAllScores([score], reference)
-#			scoreCals.append(scoreCalc)
+			scoreCalc.calculateAllScores([score], reference)
+			scoreCals.append(scoreCalc)
 			global_all_scoreCalc.append(scoreCalc)
-
+		
 # This code plot each feature as PR curve individually
-#		all_scoreCalc = scoreCals[0]
-#		for i in range(1,len(scoreCals)):
-#			all_scoreCalc.mergeScoreCalc(scoreCals[i])
-#		_, data, targets = all_scoreCalc.toSklearnData()
-#		clf = CLF_Wrapper(data, targets)
-#		print clf.getValScores()
-#		precision, recall, _ =  clf.getPRcurve()
-#		out.append((score.name, precision, recall))
-#		scoreCals = []
+		all_scoreCalc = scoreCals[0]
+		for i in range(1,len(scoreCals)):
+			all_scoreCalc.mergeScoreCalc(scoreCals[i])
+		_, data, targets = all_scoreCalc.toSklearnData()
+		print "starting ml"
+		clf = CLF_Wrapper(data, targets)
+		print clf.getValScores()
+		precision, recall, _ =  clf.getPRcurve()
+		out.append((score.name, precision, recall))
+		scoreCals = []
+		print "done with ml"
 	all_scoreCalc = global_all_scoreCalc[0]
+	print "strting combined ml"
 	for i in range(1, len(global_all_scoreCalc)):
 		all_scoreCalc.mergeScoreCalc(global_all_scoreCalc[i])
 
