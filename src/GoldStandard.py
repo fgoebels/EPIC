@@ -9,6 +9,7 @@ from xml.dom import minidom
 import os
 import wget
 import CalculateCoElutionScores as CalcS
+import re
 
 
 # @author Florian Goebels
@@ -19,16 +20,72 @@ def main():
 	elutionData = CalcS.ElutionData(elutionFile)
 	refProts = set(elutionData.prot2Index.keys())
 
-	inparanoid = ""
-	if targetSpecies != "9606":
-		inparanoid = Inparanoid(targetSpecies, foundProts = refProts)
-	gos = QuickGO(targetSpecies)
-	corum = CORUM()
-	reference = Goldstandard_from_CORUM(corum, inparanoid, ratio=1, found_prots = refProts)
+	reference = Goldstandard_from_CORUM("9606", ratio=1, found_prots = refProts)
 	print len(reference.goldstandard_positive)
 	print len(reference.goldstandard_negative)
 	print reference.goldstandard_positive
 #	print reference.goldstandard_negative
+
+class Goldstandard_from_reference_File():
+	def __init__(self, refF, ratio=5, found_prots=""):
+		self.goldstandard_positive, self.goldstandard_negative = self.read_reference_file(refF, found_prots)
+		self.rebalance(ratio)
+
+	def rebalance(self, ratio = 5):
+		if len(self.goldstandard_positive) * ratio > len(self.goldstandard_negative):
+			print "Warning: not enough negative data points in reference to create desired ratio"
+			return self.goldstandard_positive | self.goldstandard_negative
+		self.goldstandard = self.goldstandard_positive | set(random.sample(self.goldstandard_negative, len(self.goldstandard_positive) * ratio))
+
+	def read_reference_file(self, refF, found_prots=""):
+			pos = set([])
+			neg = set([])
+			refFH = open(refF)
+			for line in refFH:
+					line = line.rstrip()
+					(idA, idB, label) = line.split("\t")
+					if found_prots != "":
+							if idA not in found_prots: continue
+							if idB not in found_prots: continue
+					idA, idB = sorted([idA, idB])
+					edge = tuple([idA, idB, label])
+					if label == "negative": neg.add(edge)
+					if label == "positive": pos.add(edge)
+			return pos, neg
+
+class Goldstandard_from_cluster_File():
+	def __init__(self, gsF, ratio=500):
+		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF)
+		self.goldstandard = set([])
+		if len(self.goldstandard_positive)*ratio>len(self.goldstandard_negative):
+			print "Warning: not enough negative data points in reference to create desired ratio"
+			self.goldstandard = self.goldstandard_positive | self.goldstandard_negative
+		else:
+			self.goldstandard = self.goldstandard_positive | set(random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*ratio))
+
+	def readGS(self, gsF):
+		negative = set([])
+		positive = set([])
+		gsFH = open(gsF)
+		prot2clusters = {}
+		for line in gsFH:
+			line = line.rstrip()
+			idA, clusters = line.split("\t")
+			clusters = set(clusters.split(";"))
+			prot2clusters[idA] = clusters
+		prots = prot2clusters.keys()	
+		for i in range(len(prots)):
+			protA = prots[i]
+			clustA = prot2clusters[protA]
+			for j in range(i+1, len(prots)):
+				protB = prots[j]
+				clustB = prot2clusters[protB]
+				nodeA, nodeB = sorted([protA, protB])
+				if len(clustA & clustB) > 0:
+					positive.add((nodeA, nodeB, "positive"))
+				else:
+					negative.add((nodeA, nodeB, "nagtive"))
+		return positive, negative
 
 # @author Florian Goebels
 # Class for creating reference set from CORUM
@@ -40,15 +97,19 @@ class Goldstandard_from_CORUM():
 	#		orthmap Inparanoid object for mapping Human CORUM complexes to target species
 	#		ratio ratio for negative to postivie with |negative| = ratio * |positive|
 	#		found_prots proteins identified via MS cofractionation either as list
-	def __init__(self, complexes, orthmap="", ratio = 5, found_prots = ""):
-		self.complexes = complexes
+	def __init__(self, targetSpecies, ratio = 5, found_prots = ""):
+		inparanoid = ""
+		if targetSpecies != "9606":
+			inparanoid = Inparanoid(targetSpecies, foundProts=refProts)
+		corum = CORUM()
+		self.complexes = corum
 		self.ratio = ratio
 		self.found_prots = found_prots
 		self.goldstandard_positive = set([])
 		self.goldstandard_negative = set([])
 		self.getPositiveAndNegativeInteractions()
-		if orthmap != "":
-			self.orthmap = orthmap
+		if inparanoid != "":
+			self.orthmap = inparanoid
 			self.mapReferenceData()
 		self.makeReferenceDataSet()
 
@@ -107,9 +168,11 @@ class CORUM():
 	#		ub upper bound complex should have at most  ub members
 	#		overlap_cutoff merge complexes that have an overlap_score > overlap_cutoff
 	#		source_species select for which species the complexes should be maintained
-	def __init__(self, lb = 3, ub=30, overlap_cutoff=0.5, srouce_species = "Human"):
+	def __init__(self, lb = 1, ub=50, overlap_cutoff=0.5, source_species_regex = "(Human|Mammalia)"):
+		# static regex for identifying valid bochemical evidences codes
+		self.biochemical_evidences_regex ="MI:(2193|2192|2191|2197|2195|2194|2199|2198|0807|0401|0400|0406|0405|0404|0089|0084|0081|0007|0006|0004|0513|1029|0979|0009|0008|0841|1312|2188|2189|0411|0412|0413|0928|0415|0417|0098|0729|0920|0921|0603|0602|0605|0604|0402|0095|0096|0606|0091|0092|1142|1145|1147|0019|1309|0696|0697|0695|0858|0698|0699|0425|0424|0420|0423|0991|0990|0993|0992|0995|0994|0997|0996|0999|0998|1028|1011|1010|1314|0027|1313|0029|0028|0227|0226|0225|0900|0901|0430|0434|0435|1008|1009|0989|1004|1005|0984|1007|1000|0983|1002|1229|1087|1325|0034|0030|0031|0972|0879|0870|1036|0678|1031|1035|1034|0676|0440|1138|1236|0049|0048|1232|0047|1137|0419|0963|1026|1003|1022|0808|0515|0514|1187|0516|0511|1183|0512|0887|0880|0889|0115|1006|1249|0982|0953|1001|0508|0509|0657|0814|1190|1191|0813|0066|0892|0899|1211|0108|1218|1352|1354|0949|0946|0947|0073|0071|1019|2168|0700|2167|1252|1017|0276|1189|1184)"
 		self.corum_file = os.sep.join(os.path.abspath(__file__).split(os.sep)[:-2]) + os.sep + "data" + os.sep +"corum.txt"
-		self.srouce_species = srouce_species
+		self.source_species_regex = source_species_regex
 		self.ub = ub
 		self.lb = lb
 		self.overlap_cutoff = overlap_cutoff
@@ -117,7 +180,7 @@ class CORUM():
 		self.complexes = {}
 		self.readCORUM()
 		self.filterComplexes()
-		self.mergeComplexes()
+#		self.mergeComplexes()
 
 	# @author Florian Goebels
 	# creates protein to each complex asocciation mapping,
@@ -135,7 +198,7 @@ class CORUM():
 	# downloads current version of corum and safe it to wd/data folder as corum.txt
 	def getCORUM(self):
 		if(not os.path.exists(self.corum_file)):
-			corum_url = "http://mips.helmholtz-muenchen.de/genre/proj/corum/allComplexesCore.csv"
+			corum_url = "http://mips.helmholtz-muenchen.de/genre/proj/corum/allComplexes.csv"
 			wget.download(corum_url, self.corum_file)
 
 	# @author Florian Goebels
@@ -155,14 +218,16 @@ class CORUM():
 	# @author Florian Goebels
 	# reads in CORUM from flat file
 	def readCORUM(self):
-		complexes2prot = utils.readData(self.corum_file, np.array([0]), np.array([3,4]), sep=";")
+		complexes2prot = utils.readData(self.corum_file, np.array([0]), np.array([3,4,6]), sep=";")
 		for comp in complexes2prot:
 			for anno in complexes2prot[comp]:
-				(species, prots) = anno
-				if species != self.srouce_species: continue
+				(species, prots, evidence) = anno
+				# bool(...) returns true if evidence code is found => not bool(...) is true if not valid evidence is found, and thus skip this complex
+				if not bool(re.search(self.biochemical_evidences_regex, evidence)):
+					continue
+				if not bool(re.search(self.source_species_regex, species)): continue
 				prots = prots.split(",")
 				self.complexes[comp] = prots
-	
 
 	# @author Florian Goebels
 	# merges complexes which have an overlapp score > overlap_cutoff, and continues to merge until there is nothing left to merge
@@ -318,7 +383,7 @@ class Inparanoid():
 			protsInGroup = set([])
 			for protRef in orthgroup.getElementsByTagName('geneRef'):
 				prot = str(protID2prot[protRef.getAttribute('id')])
-				inparanoidScore = protRef.getElementsByTagName('score')[0].getAttribute('value')
+				inparanoidScore = float(protRef.getElementsByTagName('score')[0].getAttribute('value'))
 	#			TODO integrate bootstraping score
 	#			bootstrapScore = protRef.getElementsByTagName('score')[1].getAttribute('value')
 				if inparanoidScore >= self.inparanoid_cutoff:
@@ -358,7 +423,7 @@ class Inparanoid():
 		
 
 if __name__ == "__main__":
-        try:
-                main()
-        except KeyboardInterrupt:
-                pass
+		try:
+				main()
+		except KeyboardInterrupt:
+				pass

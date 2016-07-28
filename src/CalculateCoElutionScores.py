@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 from __future__ import division
 import numpy as np
 import scipy.stats
@@ -26,8 +26,6 @@ from sklearn import svm
 from sklearn import datasets
 from sklearn import metrics
 import random
-#import pathos.multiprocessing as mp
-#import pathos.pp as pp
 import multiprocessing as mp
 from functools import partial
 import GoldStandard as GS
@@ -35,17 +33,38 @@ import GoldStandard as GS
 subfldr = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"TCSS")))
 sys.path.append(subfldr)
 
-from main import load_semantic_similarity, calculate_semantic_similarity
+#from main import load_semantic_similarity, calculate_semantic_similarity
 
+
+# GLobal static objects used across the files
+# Load R packages globally in order to avoid loading each package again in each thread
+
+# Load script for calculating Bayes correlation globally
 r=robjects.r
 r.source("src/Bayes_Corr.R")
 cor1 = robjects.r["Bayes_Corr_Prior1"]
 cor2 = robjects.r["Bayes_Corr_Prior2"]
 cor3 = robjects.r["Bayes_Corr_Prior3"]
 
+# Packages required for calculating WCC
 rpackages.importr('wccsom')
 r_wcc = robjects.r['wcc']
 
+# used in cacluating Poission score
+minCounts = 2
+
+# Default number of Threads is number of available cores
+num_cores = mp.cpu_count()
+
+
+# Helper functions for calculating co-elution scores on mutliple processors at the same time
+def getScore(scoreFun, profileA, profileB, protnames):
+	score = scoreFun(profileA, profileB)
+	return (protnames, score)
+
+def worker(task):
+	fun , args = task
+	return fun(*args)
 
 
 #Contacts:
@@ -64,6 +83,7 @@ class ElutionData():
 	#		self.normedElutionMat numpy matric containing normalized spectral counts 
 	#		self.prot2Index dictonary mapping protein to it's respective row index in self.elutionMat and self.normedElutionMat
 	def __init__(self, elutionProfileF):
+		self.name = os.path.split(elutionProfileF)[-1]
 		self.elutionMat, self.prot2Index  = self.loadElutionData(elutionProfileF)
 		self.normedElutionMat = normalize_fracs(self.elutionMat)
 		self.elutionMat = np.array(self.elutionMat)
@@ -185,6 +205,8 @@ class GOSim(object):
 			out.append(score)
 		return out
 
+#Fueatures that can be calcuated in parrallel have always a static helper function, since pythons multiprocessing package does not support pickeling of objects
+
 # @ author Florian Goebels
 # returns apex similarity score which is based on previously published methods Pierre 2011 et al.
 # returns 0 or 1 depending if the highest count peak of two proteins are in the same fraction or not
@@ -207,25 +229,56 @@ class Apex(object):
 # @ author Florian Goebels
 # returns bayes correlation for two proteins
 # reference on how the score is calculated is here: http://www.perkinslab.ca/sites/perkinslab.ca/files/Bayes_Corr.R
-
-def calculateScoreBayes(a,b):
-	global cor1
-	global cor2
-	global cor3
-	dims = np.matrix([a,b]).shape
-	r_cro_mat_object = robjects.r.matrix(robjects.IntVector(np.append(a, b)), nrow=dims[1], ncol = dims[0])
+def getRmat(a,b):
+	dims = np.matrix([a, b]).shape
+	r_cro_mat_object = robjects.r.matrix(robjects.IntVector(np.append(a, b)), nrow=dims[1], ncol=dims[0])
 	r_cro_mat = r_cro_mat_object.transpose()
-	return [cor1(r_cro_mat)[1], cor2(r_cro_mat)[1], cor3(r_cro_mat)[1]]
-	
-class Bayes_corr:
-	def __init__(self, corNum = 1):
-		self.name = ["Bayes1", "Bayes2", "Bayes3"]
+	return r_cro_mat
+
+def calculateScoreBayes1(a,b):
+	r_cro_mat = getRmat(a,b)
+	global cor1
+	return cor1(r_cro_mat)[1]
+
+def calculateScoreBayes2(a,b):
+	r_cro_mat = getRmat(a,b)
+	global cor2
+	return cor2(r_cro_mat)[1]
+
+def calculateScoreBayes3(a,b):
+	r_cro_mat = getRmat(a,b)
+	global cor3
+	return cor3(r_cro_mat)[1]
+
+class Bayes1:
+	def __init__(self):
+		self.name = "Bayes1"
 		self.parallel = True
 	
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
-	calculateScore = staticmethod(calculateScoreBayes)
+	calculateScore = staticmethod(calculateScoreBayes1)
+
+class Bayes2:
+	def __init__(self):
+		self.name = "Bayes2"
+		self.parallel = True
+
+	def getScores(self, a, b, elutionData):
+		return (elutionData.getElution(a), elutionData.getElution(b))
+
+	calculateScore = staticmethod(calculateScoreBayes2)
+
+class Bayes3:
+	def __init__(self):
+		self.name = "Bayes3"
+		self.parallel = True
+
+	def getScores(self, a, b, elutionData):
+		return (elutionData.getElution(a), elutionData.getElution(b))
+
+	calculateScore = staticmethod(calculateScoreBayes3)
 
 # @ author Florian Goebels
 # returns weighted cross correlation similarity score which is based on previously published methods Pierre 2011 et al.
@@ -289,9 +342,6 @@ class Poisson:
 # returns Mutual Information of two proteins
 # mutual information is based on entropy calculation MI(x,y) = H(x) + H(y) - H(x,y) 
 # wehre H means entropy
-
-
-minCounts = 2
 def calculateScore_MI( a, b):
 	numFracs = len(a)
 	(a_upper, a_lower) = getFracs(a, minCounts)
@@ -392,14 +442,6 @@ class Euclidiean:
 
 	calculateScore = staticmethod(calculateScore_euclidean)
 
-def getScore(scoreFun, profileA, profileB, protnames):
-	score = scoreFun(profileA, profileB)
-	return (protnames, score)
-
-def worker(task):
-	fun , args = task
-	return fun(*args)
-
 # @ author Florian Goebels
 # This is a helper class for calculating co elution scores for a given ElutionData object
 class CalculateCoElutionScores():
@@ -411,13 +453,26 @@ class CalculateCoElutionScores():
 		self.elutionData = elutionData
 		self.scores = {}
 		self.header = ["ProtA","ProtB"]
-		
+	
+	def initFromFile(self, scoreF, reference):
+		scoreFH = open(scoreF)
+		self.header = scoreFH.readline().rstrip()
+		for line in scoreFH:
+			line = line.rstrip()
+			linesplit = line.split("\t")
+			idA, idB = sorted(linesplit[0:2])
+			edge_scores = map(float, linesplit[2:])
+			label = "?"
+			for label_type in ["positive", "positive"]:
+				if (idA, idB, label_type) in reference:
+					label = label_type
+			self.scores[(idA, idB, label)] = edge_scores
 
 	# @author: Florian Goebels
 	# this method combines who CalculateCoElutionScores objects unto one by comping the toMerge object into the self object
 	# @Param:
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined tiwth self object
-	def mergeScoreCalc(self, toMerge):
+	def merge_singe_ScoreCalc(self, toMerge):
 		numFeature_in_merge = len(toMerge.header)-2
 		numFeature_in_self = len(self.header)-2
 		for edge in toMerge.scores:
@@ -428,27 +483,55 @@ class CalculateCoElutionScores():
 		for edge in self.scores:
 			if edge not in toMerge.scores:
 				self.scores[edge] = np.append(self.scores[edge], np.array([0]*numFeature_in_merge))
+		self.header.extend(toMerge.header[2:])
 
-	#
-	#
-	@staticmethod
-	def filter_interactions_Jaccard(elutionData, ppis):
-		thisCS = CalculateCoElutionScores(elutionData)
-		thisCS.calculateAllScores([Jaccard()], ppis)
-		toDel = set([])
-		for edge in thisCS.scores:
-			if edge[2] != "?": continue #only remove prediction label not positive or negative label name
-			jaccardScore = thisCS.scores[edge][-1]
-			if jaccardScore == 0.0:
-				toDel.add(edge)
-		out = set(ppis) - toDel
-		return list(out)	
+	def filter_predictions_coelutionscore(self, cutoff = 0.5, cols = ""):
+		if cols == "": cols = range(len(self.header)-2)
+		todel = set([])
+		for edge in self.scores:
+			protA, protB, lab = edge
+			if lab != "?": continue
+			hasScore = False
+			scores = self.scores[edge]
+			for col in cols:
+				if scores[col]>cutoff:
+					hasScore = True
+					break
+			if not hasScore: todel.add(edge)
+		for edge in todel:
+				del self.scores[edge]
+		print "removed a total of %i with coelution scores lower that 0.5" % (len(todel))
+
+	def merge_list_ScoreCalc(self, toMerge):
+			for sCalc in toMerge:
+					self.merge_singe_ScoreCalc(sCalc)
+
+	def mergeScoreCalc(self, toMerge):
+			if isinstance(toMerge, list):
+				self.merge_list_ScoreCalc(toMerge)
+			else:
+				self.merge_singe_ScoreCalc(toMerge)
+
+	# @ author Florian Goebels
+	# A filter for removing all possible protein pairs when predicting the network form elution data
+	# here we decided to remove all candidate ppis with an Jaccard score of 0, since those interaction do not co-elute in any observed fraction
+	def filter_interactions_Jaccard(self, ppis):
+		print "start filtering"
+		out = set([])
+		thisJaccard = Jaccard()
+		for protA, protB, label in ppis:
+			if label != "?":
+				out.add(tuple([protA, protB, label]))
+			profileA, profileB = thisJaccard.getScores(protA, protB, self.elutionData)
+			if not profileA.isdisjoint(profileB): out.add(tuple([protA, protB, label]))
+		return out
 
 	# @author: Florian Goebels
 	# returns a list with all possible pairs of protein interactions for a given ElutionData object
-	def getAllPairs(self, ref):
+	def getAllPairs(self, ref, filter = True):
 		allprots = self.elutionData.prot2Index.keys()
 		allPPIs = set([])
+		print "Making all pairs"
 		for i in range(len(allprots)):
 			for j in range(i+1, len(allprots)):
 				protA = allprots[i]
@@ -456,51 +539,51 @@ class CalculateCoElutionScores():
 				if protA == protB: continue
 				protA, protB = sorted([protA, protB])
 				label = "?"
-				for label_type in ["positive", "positive"]:
+				for label_type in set(["positive", "negative"]):
 					if (protA, protB, label_type) in ref: label = label_type
 				allPPIs.add((protA, protB, label))
-		return list(allPPIs)
+		print "Num PPIs: %i" % (len(allPPIs))
+		if filter:
+			allPPIs = self.filter_interactions_Jaccard(allPPIs)
+			print "After filtering Jaccard: %i num pairs" % (len(allPPIs))
+		return allPPIs
 
 	# @author: Florian Goebels
 	# calculates all given scores for all possible interactions of a given ElutionData object
 	# @Param:
 	#		scores a list of scores to calculate
-	def calculateAllPairs(self, scores, ref):
-		allprots = self.getAllPairs(ref)
-		allprots = CalculateCoElutionScores.filter_interactions_Jaccard(self.elutionData, allprots)
-		self.calculateAllScores(scores, allprots)		
+	def calculateAllPairs(self, scores, ref, filter):
+		allprots = self.getAllPairs(ref, filter)
+		self.calculateScores(scores, allprots)
 
 	# @author: Florian Goebels
 	# create co elution table for a given list of scores and ppis
 	# @Param:	
 	#		scoreTypes	a list of co elutoin score objects
 	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
-	def calculateAllScores(self, scoreTypes, PPIs):
+	def calculateScores(self, scoreTypes, PPIs):
 		for st in scoreTypes:
-			name = st.name
+			thisst = copy.deepcopy(st) # copy score object beacuse some objects store information internally and by copying them avoid having data stored when calculating the score for different data sets in the same run
+			name = self.elutionData.name + "." +  st.name
+			print "Calculating %s" % (name)
 			numScores = 1
 			if isinstance(name, list):
 				self.header.extend(name)
 				numScores = len(name)
 			else:
 				self.header.append(name)
-			scores = []
 			tasks = []
-			results = []
 			for protA, protB, label in PPIs:
 				if (protA, protB, label) not in self.scores: self.scores[(protA, protB, label)] = []
 				if not self.elutionData.hasProt(protA) or not self.elutionData.hasProt(protB):
-					
 					self.scores[(protA, protB, label)].extend([0]*numScores)
 					continue
-				profileA, profileB = st.getScores(protA, protB, self.elutionData)
-				task = (getScore, (st.calculateScore, profileA, profileB, (protA, protB, label)))
+				profileA, profileB = thisst.getScores(protA, protB, self.elutionData)
+				task = (getScore, (thisst.calculateScore, profileA, profileB, (protA, protB, label)))
 				tasks.append(task)
-#			results = p.map_async(worker, tasks)
-#			results.wait()
-#			results = results.get()
-			if st.parallel == True:
-				p = mp.Pool(4)
+			if thisst.parallel == True:
+				global num_cores 
+				p = mp.Pool(num_cores)
 				results = p.map(worker, tasks)
 				p.close()
 				p.join()
@@ -510,7 +593,17 @@ class CalculateCoElutionScores():
 				if isinstance(score, list):
 					self.scores[ppi].extend(score)
 				else:
-					self.scores[ppi].append(score)	
+					self.scores[ppi].append(score)
+
+	def calculate_coelutionDatas(self, elutionDatas, scores, reference, predict, filter):
+		for elutionData in elutionDatas:
+			print "Processing: %s" % (elutionData.name)
+			scoreCalc = CalculateCoElutionScores(elutionData)
+			if predict:
+				scoreCalc.calculateAllPairs(scores, reference, filter)
+			else:
+				scoreCalc.calculateScores(scores, reference)
+			self.mergeScoreCalc(scoreCalc)
 
 	# @author: Florian Goebels
 	# prints table
@@ -541,11 +634,12 @@ class CalculateCoElutionScores():
 
 	# @author: Florian Goebels
 	# return stored co elution scores for a given data set in form that is required for sklearn to learn and predict interaction
-	def toSklearnData(self):
+	def toSklearnData(self, labels = ["positive", "negative", "?"]):
 		data = []
 		targets = []
 		ids = []
 		for idA, idB, label in self.scores:
+			if label not in labels: continue
 			if label == "positive": targets.append(1)
 			if label == "negative": targets.append(0)
 			if label == "?": targets.append("?")
@@ -562,31 +656,39 @@ class CLF_Wrapper:
 	#		data matrix with features where each row is a data point
 	#		targets list with class lables
 	# 		forest if true ml is random forst, if false ml is svm
-	def __init__(self, data, targets, forest=False):
+	def __init__(self, data, targets, forest=False, folds =10):
 		self.data = data
+		self.folds = folds
 		self.targets = targets #label_binarize(targets, classes=[0, 1])
+		self.eval_preds = ""
+		self.eval_targets = ""
 		if forest:
-			self.clf = RandomForestClassifier(n_estimators=100)
+			print ("using Random forest")
+			self.clf = RandomForestClassifier(n_estimators=400, n_jobs=num_cores)
 		else:	
-			self.clf = svm.SVC(kernel="linear", probability=True)
-		self.clf.fit(data, targets)
-		
+			print ("Using SVM")
+			self.clf =  svm.SVC(kernel="linear", probability=True)
+		self.clf.fit(self.data, self.targets)
 
-	# @author: Florian Goebels
-	# do 10 fold cross validation returns predicted class lables
-	# @Param:
-	#		folds number of folds default 10
-	def kFoldCV(self, folds=10):
-		folds = StratifiedKFold(self.targets, folds)
-		return cross_val_predict(self.clf, self.data, self.targets, cv=folds)
-
+	# @author Florian Goebels
+	def geteval(self):
+		all_probas = []
+		all_targets = []
+		for train, test in StratifiedKFold(self.targets, self.folds):
+			probas = self.clf.fit(self.data[train], self.targets[train]).predict_proba(self.data[test])
+			all_probas.extend(probas[:,1]) # make sure that 1 is positive class in binarizied class vector
+			all_targets.extend(self.targets[test])
+		self.eval_preds  = all_probas
+		self.eval_targets = all_targets
 
 	# @author: Florian Goebels
 	# calculates precision, recall, fmeasure, auc_pr, auc_roc for n fold cross validation
 	# @Param:
 	#		folds number of folds default 10
-	def getValScores(self, folds=10):
-		preds = self.kFoldCV(folds)
+	def getValScores(self):
+		global num_cores
+		folds = StratifiedKFold(self.targets, self.folds)
+		preds = cross_val_predict(self.clf, self.data, self.targets, cv=folds, n_jobs=num_cores)
 		precision = metrics.precision_score(self.targets, preds, average=None)[1]
 		recall = metrics.recall_score(self.targets, preds, average=None)[1]
 		fmeasure = metrics.f1_score(self.targets, preds, average=None)[1]
@@ -601,155 +703,141 @@ class CLF_Wrapper:
 	# @Param:
 	#		folds number of folds default 10
 	def getPRcurve(self, folds=10):
-		all_probas = []
-		all_targets = []
-		for train, test in StratifiedKFold(self.targets, folds):
-			probas = self.clf.fit(self.data[train], self.targets[train]).predict_proba(self.data[test])
-			all_probas.extend(probas[:,1]) # make sure that 1 is positive class in binarizied class vector
-			all_targets.extend(self.targets[test])
-		return precision_recall_curve(all_targets, all_probas)
-#		return roc_curve(all_targets, all_probas)
-	
+		if self.eval_preds == "":
+			self.geteval()
+		return precision_recall_curve(self.eval_targets, self.eval_preds)
+
+	def getROCcurve(self, folds=10):
+		if self.eval_preds == "":
+			self.geteval()
+		return roc_curve(self.eval_targets, self.eval_preds)
 
 	# @author: Florian Goebels
 	# @Param:
 	#		toPred matric where each row is a data point and predicts interaction propability for a given set
 	#		note trainer needs to be already trained to be ablte to predict
 	def predict(self, toPred):
-		return self.clf.predict_proba(toPred)
-
-# @author: Florian Goebels
-# Create gold standard data set from CORUM using the GoldStandard helper class
-# @Param:
-#		ratio the size realtion ship between positive and negative training data points: |negative| = ratio * |positive|
-#		target pecies to predict in given in taxid here we use worm i.e. taxid 6239 (mouse 10090, Human 9606) 
-def createGoldStandard(elutionData, ratio=5, targetSpecies = "6239"):
-	protsWithElutionProfile = set([])
-	for data in elutionData:
-		protsWithElutionProfile = protsWithElutionProfile | set(data.prot2Index.keys())
-
-	inparanoid = GS.Inparanoid(targetSpecies, foundProts = protsWithElutionProfile)
-	gos = GS.QuickGO(targetSpecies)
-	corum = GS.CORUM()
-	reference = GS.Goldstandard_from_CORUM(corum, inparanoid, ratio=5, found_prots = protsWithElutionProfile)
-	return reference.goldstandard
-
-def createGoldStandard_alt(refF, elutionData, ratio=5):
-        positive = set([])
-        negative = set([])
-        protsWithElutionProfile = set([])
-        for data in elutionData:
-                protsWithElutionProfile = protsWithElutionProfile | set(data.prot2Index.keys())
-        reference = set([])
-        goldstandardFH = open(refF)
-        for line in goldstandardFH:
-                line = line.rstrip()
-                (tmpidA, tmpidB, label) = line.split("\t")
-                if tmpidA not in protsWithElutionProfile or tmpidB not in protsWithElutionProfile: continue
-                idA, idB = sorted([tmpidA, tmpidB])
-                if label == "positive": positive.add((idA, idB, label))
-                if label == "negative": negative.add((idA, idB, label))
-
-        if len(positive)*ratio>len(negative):
-                print "Warning: not enough negative data points in reference to create desired ratio"
-                return positive | negative
-
-        print len(positive)
-        print len(negative)
-        reference = positive | set(random.sample(negative, len(positive)*ratio))
-        return reference
+		probas = self.clf.predict_proba(toPred)
+		return probas[:,1]
 
 # @author: Florian Goebels
 # makes precision recall plot for mutliple rp ccurves
 # @Param:
 #	prcurves list of tuples with (name, precision, recall) which should be plotted
 #	outF Pdf file location for the created plot
-def plotPRcurve(prcurves, outF):
+def plotCurves(curves, outF, xlab, ylab):
 	plt.clf()
-	plt.xlabel('Recall')
-	plt.ylabel('Precision')
+	plt.xlabel(xlab)
+	plt.ylabel(ylab)
 	plt.ylim([0.0, 1.05])
 	plt.xlim([0.0, 1.0])
 	cols = ['b', 'r', 'c', 'm', 'y', 'k', '#0000ff', '#005D00', '#00FF00', '#8B5D00', '#FF6600', '#FF0066', '#5c5c8a']
-	for (name, precision, recall) in prcurves:
-		plt.plot(recall, precision, label=name, color = cols.pop())	
-	plt.legend(loc="upper right", ncol = 5, fontsize=8)
-	plt.savefig(outF)
+	for (name, y, x) in curves:
+		if name != "":
+			plt.plot(x, y, label=name, color = cols.pop())
+		else:
+			plt.plot(x, y, color=cols.pop())
+	art = []
+	lgd = plt.legend(loc=9, bbox_to_anchor=(0.5, -0.1),  ncol = 5, fontsize=8)
+	art.append(lgd)
+	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
 # @author Florian Goebels
-# 
-def predictInteractions(taxid, elutionFile, outF):
-	elutionData = ElutionData(elutionFile)
-	reference = createGoldStandard([elutionData])
-	scoreCalc = CalculateCoElutionScores(elutionData)
-	scoreCalc.calculateAllPairs([MutualInformation(2), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10), Bayes_corr()], reference)
-#	scoreCalc.calculateAllPairs([Apex()], reference)
-	ids, data, targets = scoreCalc.toSklearnData()
-#	clf = CLF_Wrapper(data, targets)
-#	preds = clf.predict(data)
+def predictInteractions(reference, elutionDatas, scores, outF, useForest):
+	scoreCalc = CalculateCoElutionScores()
+	scoreCalc.calculate_coelutionDatas(elutionDatas, scores, reference, predict=True, filter=True)
+	scoreCalc.filter_predictions_coelutionscore()
+	print len(reference)
+	ids_train, data_train, targets_train = scoreCalc.toSklearnData(labels=set(["positive", "negative"]))
+	print data_train.shape
+	ids_pred, data_pred, targets_pred = scoreCalc.toSklearnData()
+	print data_pred.shape
+	clf = CLF_Wrapper(data_train, targets_train, forest=useForest)
+	preds = clf.predict(data_pred)
 	outFH = open(outF, "w")
-	outFH.write(scoreCalc.toTable())
+	cutoff = 0.1
+	if useForest: cutoff = 0.6
+	for i in range(len(ids_pred)):
+		if preds[i] >= cutoff:
+			outFH.write("%s\t%f\n" % ("\t".join(ids_pred[i]), preds[i]))
 	outFH.close()
-	
-# @author Florian Goebels
-# filler main function 
-def main():
-#	taxid, elutionF, outF = sys.argv[1:]
-#	predictInteractions(taxid, elutionF, outF)
-	refF, elutionFiles, outF = sys.argv[1:]
-	bench_scores(refF, elutionFiles, outF)
 
-def bench_scores(refF, elutionFiles, outF):
+
+# @author Florian Goebels
+def main():
+	refF, useForest, elutionFiles, outDir = sys.argv[1:]
+	useForest = useForest == "True"
+
+	scores = [MutualInformation(2), Bayes1(), Bayes2(), Bayes3(), Euclidiean(), Pearson(), Wcc(), Jaccard(), Poisson(10)]
+#	scores = [Pearson()]
+
 	elutionFH = open(elutionFiles)
-	scoreCals = []
 	elutionDatas = []
-	
+	elutionProts = set([])
 	for elutionFile in elutionFH:
 		elutionFile = elutionFile.rstrip()
 		elutionData = ElutionData(elutionFile)
 		elutionDatas.append(elutionData)
-
-	reference = createGoldStandard_alt(refF, elutionDatas)
-	out = []
-	global_all_scoreCalc = []
-#	change here which features you want to use for calculating co elution scores
-#	for score in [Poisson(10)]:
-	for score in [MutualInformation(2), Bayes_corr(), Euclidiean(), Pearson(), Wcc(), Apex(), Jaccard(), Poisson(10)]:
-		print score.name
-		for elutionD in elutionDatas:
-			scoreCalc = CalculateCoElutionScores(elutionD)
-			scoreCalc.calculateAllScores([score], reference)
-			scoreCals.append(scoreCalc)
-			global_all_scoreCalc.append(scoreCalc)
-		
-# This code plot each feature as PR curve individually
-		all_scoreCalc = scoreCals[0]
-		for i in range(1,len(scoreCals)):
-			all_scoreCalc.mergeScoreCalc(scoreCals[i])
-		_, data, targets = all_scoreCalc.toSklearnData()
-		print "starting ml"
-		clf = CLF_Wrapper(data, targets)
-		print clf.getValScores()
-		precision, recall, _ =  clf.getPRcurve()
-		out.append((score.name, precision, recall))
-		scoreCals = []
-		print "done with ml"
-	all_scoreCalc = global_all_scoreCalc[0]
-	print "strting combined ml"
-	for i in range(1, len(global_all_scoreCalc)):
-		all_scoreCalc.mergeScoreCalc(global_all_scoreCalc[i])
-
-	_, data, targets = all_scoreCalc.toSklearnData()	
-	clf = CLF_Wrapper(data, targets)
-	print clf.getValScores()
-	precision, recall, _ =  clf.getPRcurve()
-	out.append(("combined", precision, recall))
-
-	plotPRcurve(out, outF)
+		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
 	
+	reference = GS.Goldstandard_from_reference_File(refF, found_prots=elutionProts)
+#	bench_scores(reference.goldstandard, elutionDatas, scores, outDir, useForest)
+	print len(reference.goldstandard_positive)
+	print len(reference.goldstandard)
+	predictInteractions(reference.goldstandard, elutionDatas, scores, outDir + ".pred.txt", useForest)
+
+def bench_scores(reference, elutionDatas, scores, outDir, useForest=False):
+	scoreCals = []
+	pr_curves = []
+	roc_curves = []
+	cutoff_curves = []
+	global_all_scoreCalc = []
+	tableFH = open(outDir + ".eval.txt", "w")
+	tableFH.write("Name\tPrecision\tRecall\tF-measure\tau_PR\tau_ROC\n")
+	for score in scores:
+		print(score.name)
+		scoreCalc = CalculateCoElutionScores()
+		scoreCalc.calculate_coelutionDatas(elutionDatas, [score], reference, predict=False, filter=False)
+		_, data, targets = scoreCalc.toSklearnData()
+		print("starting ml")
+		clf = CLF_Wrapper(data, targets, forest=useForest, folds=10)
+		tableFH.write("%s\t%s\n" % (score.name, "\t".join(map(str, clf.getValScores()))))
+		precision, recall, _ =  clf.getPRcurve()
+		pr_curves.append((score.name, precision, recall))
+
+		fpr, tpr, _ = clf.getROCcurve()
+		roc_curves.append((score.name, tpr, fpr))
+		print ("done with ml")
+		scoreCals.append(scoreCalc)
+
+	print ("starting combined ml")
+	all_scoreCalc = CalculateCoElutionScores()
+	all_scoreCalc.merge_list_ScoreCalc(scoreCals)
+	_, data, targets = all_scoreCalc.toSklearnData()	
+	clf = CLF_Wrapper(data, targets, forest=useForest, folds=10)
+	tableFH.write("Combined\t%s\n" % ("\t".join(map(str, clf.getValScores()))))
+	tableFH.close()
+	precision, recall, threshold =  clf.getPRcurve()
+	pr_curves.append(("combined", precision, recall))
+	plotCurves(pr_curves, outDir + ".pr.pdf", "Recall", "Precision")
+
+	dataFH = open(outDir + ".scores.txt", "w")
+	dataFH.write(all_scoreCalc.toTable())
+	dataFH.close()
+
+	threshold = np.append(threshold, 1)
+	fpr, tpr, _ = clf.getROCcurve()
+	roc_curves.append(("combined", tpr, fpr))
+	plotCurves(roc_curves, outDir + ".roc.pdf", "False Positive rate", "True Positive Rate")
+	
+	cutoff_curves.append(("Precision", precision, threshold))
+	cutoff_curves.append(("Recall", recall, threshold))
+	plotCurves(cutoff_curves, outDir + ".cutoff.pdf", "Cutoff", "Evaluation metric score")
+		
+
 
 if __name__ == "__main__":
         try:
                 main()
         except KeyboardInterrupt:
-                pas
+                pass
