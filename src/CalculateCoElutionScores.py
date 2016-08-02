@@ -53,6 +53,9 @@ r_wcc = robjects.r['wcc']
 # used in cacluating Poission score
 minCounts = 2
 
+# array for storing elution matrices with poission noise for PCC + Noise co-elution freature
+noiseMats = []
+
 # Default number of Threads is number of available cores
 num_cores = mp.cpu_count()
 
@@ -160,20 +163,20 @@ class ElutionData():
 # @author: Florian Goebels
 # helper function for normalization
 def arr_norm(arr, axis=0):
-    """
-    axis=0: normalize each column; 1: normalize each row
-    """
-    mat = np.asmatrix(arr)
-    return np.asarray(np.nan_to_num(mat / np.sum(mat, axis)))
+	"""
+	axis=0: normalize each column; 1: normalize each row
+	"""
+	mat = np.asmatrix(arr)
+	return np.asarray(np.nan_to_num(mat / np.sum(mat, axis)))
 
 def normalize_fracs(arr, norm_rows=True, norm_cols=True):
-    if norm_cols:
-        # Normalize columns first--seems correct for overall elution profile if
-        # you're calculating correlation-type scores
-        arr = arr_norm(arr, 0)
-    if norm_rows:
-        arr = arr_norm(arr, 1)
-    return arr
+ 	if norm_cols:
+		# Normalize columns first--seems correct for overall elution profile if
+		# you're calculating correlation-type scores
+		arr = arr_norm(arr, 0)
+	if norm_rows:
+		arr = arr_norm(arr, 1)
+	return arr
 
 
 # The following classes describe features for calculating Co elution scores
@@ -205,6 +208,9 @@ class GOSim(object):
 			out.append(score)
 		return out
 
+	def clear(self):
+		return True
+
 #Fueatures that can be calcuated in parrallel have always a static helper function, since pythons multiprocessing package does not support pickeling of objects
 
 # @ author Florian Goebels
@@ -223,6 +229,9 @@ class Apex(object):
 
 	def getScores(self, a, b, elutionData):
 		return (np.argmax(elutionData.getElution(a)), np.argmax(elutionData.getElution(b)))
+
+	def clear(self):
+		return True
 
 	calculateScore = staticmethod(calculateScore_apex)
 
@@ -258,6 +267,9 @@ class Bayes1:
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
+	def clear(self):
+		return True
+
 	calculateScore = staticmethod(calculateScoreBayes1)
 
 class Bayes2:
@@ -268,6 +280,9 @@ class Bayes2:
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
 
+	def clear(self):
+		return True
+
 	calculateScore = staticmethod(calculateScoreBayes2)
 
 class Bayes3:
@@ -277,6 +292,9 @@ class Bayes3:
 
 	def getScores(self, a, b, elutionData):
 		return (elutionData.getElution(a), elutionData.getElution(b))
+
+	def clear(self):
+		return True
 
 	calculateScore = staticmethod(calculateScoreBayes3)
 
@@ -296,11 +314,16 @@ class Wcc:
 
 	calculateScore = staticmethod(calculateScore_wcc)
 
+	def clear(self):
+		return True
 
 # @ author Florian Goebels
 # returns travor correlation which is pearson correlation plus poisson noise to remove the influence of low counts
 def calculateScore_PCCPN(a,b):
-	corrs = map(lambda x : scipy.stats.pearsonr(a[x], b[x])[0], range(len(a)))
+	global noiseMats
+	corrs = []
+	for mat in noiseMats:
+			corrs.append(scipy.stats.pearsonr(mat[a].getA1(), mat[b].getA1())[0])
 	return sum(corrs)/len(corrs)
 
 class Poisson:
@@ -311,24 +334,23 @@ class Poisson:
 		self.parallel = True
 
 	def getScores(self, a, b, elutionData):
-		if len(self.noiseMats)> 0 and elutionData.elutionMat.shape != self.noiseMats[0].shape:
-			self.noiseMats = []
-		
-		if len(self.noiseMats)<self.repeat:
-			for i in range(self.repeat):
-				self.noiseMats.append(self.makenoisyMat(elutionData.elutionMat))
+		global noiseMats
+		if len(noiseMats) == 0:
+			self.setNoiseMats(elutionData)
+
 		indexA = elutionData.getProtIndex(a)
 		indexB = elutionData.getProtIndex(b)
-		outA = []
-		outB = []
-		for mat in self.noiseMats:
-			outA.append(mat[indexA].getA1())
-			outB.append(mat[indexB].getA1())
-		return (outA, outB)
+		return (indexA, indexB)
 
 	calculateScore = staticmethod(calculateScore_PCCPN)
 
+	def setNoiseMats(self, elutionData):
+		global noiseMats
+		for i in range(self.repeat):
+			noiseMats.append(self.makenoisyMat(elutionData.elutionMat))
+
 	def makenoisyMat(self, mat):
+		global noiseMats
 		M = mat.shape[1]
 		C = mat + 1/M
 		poisson_mat = np.matrix(np.zeros(C.shape))
@@ -337,6 +359,10 @@ class Poisson:
 				poisson_mat[i,j] = np.random.poisson(C[i,j])
 		poisson_mat = np.nan_to_num(poisson_mat / np.sum(poisson_mat, 0))
 		return poisson_mat
+
+	def clear(self):
+		global noiseMats
+		noiseMats = []
 
 # @ author Florian Goebels
 # returns Mutual Information of two proteins
@@ -379,6 +405,10 @@ class MutualInformation():
 
 	calculateScore = staticmethod(calculateScore_MI)
 
+
+	def clear(self):
+		return True
+
 # @ author Florian Goebels
 # calculates Jaccard overlap score which is as follows
 # Jaccard(x,y) = sum(x!=1 and y!=1)/(sum(x!=1) + sum(y!=1))
@@ -405,6 +435,10 @@ class Jaccard():
 	calculateScore = staticmethod(calculateScore_Jaccard)
 
 
+	def clear(self):
+		self.non_zero_fracs_for_prot = {}
+		return True
+
 # @ author Florian Goebels
 # return Pearson correlation of two proteins
 
@@ -426,6 +460,9 @@ class Pearson:
 	
 	calculateScore = staticmethod(calculateScore_Pearson)
 
+	def clear(self):
+		return True
+
 # @ author Florian Goebels
 # returns Euclidean distance of two proteins
 def calculateScore_euclidean(a,b):
@@ -441,6 +478,9 @@ class Euclidiean:
 		return (elutionData.getElution(a, normed=True), elutionData.getElution(b, normed=True))
 
 	calculateScore = staticmethod(calculateScore_euclidean)
+
+	def clear(self):
+		return True
 
 # @ author Florian Goebels
 # This is a helper class for calculating co elution scores for a given ElutionData object
@@ -566,6 +606,8 @@ class CalculateCoElutionScores():
 			thisst = copy.deepcopy(st) # copy score object beacuse some objects store information internally and by copying them avoid having data stored when calculating the score for different data sets in the same run
 			name = self.elutionData.name + "." +  st.name
 			print "Calculating %s" % (name)
+			global noiseMats
+			print "Number of noise mpats for pcc+n:%i" % (len(noiseMats))
 			numScores = 1
 			if isinstance(name, list):
 				self.header.extend(name)
@@ -594,6 +636,9 @@ class CalculateCoElutionScores():
 					self.scores[ppi].extend(score)
 				else:
 					self.scores[ppi].append(score)
+			print "Number of noise mpats for pcc+n:%i" % (len(noiseMats))
+			st.clear()
+			print "Number of noise mpats for pcc+n:%i" % (len(noiseMats))
 
 	def calculate_coelutionDatas(self, elutionDatas, scores, reference, predict, filter):
 		for elutionData in elutionDatas:
@@ -769,7 +814,7 @@ def main():
 	useForest = useForest == "True"
 
 	scores = [MutualInformation(2), Bayes1(), Bayes2(), Bayes3(), Euclidiean(), Pearson(), Wcc(), Jaccard(), Poisson(10)]
-#	scores = [Pearson()]
+#	scores = [Pearson(), Poisson(10)]
 
 	elutionFH = open(elutionFiles)
 	elutionDatas = []
@@ -782,8 +827,8 @@ def main():
 	
 	reference = GS.Goldstandard_from_reference_File(refF, found_prots=elutionProts)
 #	bench_scores(reference.goldstandard, elutionDatas, scores, outDir, useForest)
-	print len(reference.goldstandard_positive)
-	print len(reference.goldstandard)
+#	print len(reference.goldstandard_positive)
+#	print len(reference.goldstandard)
 	predictInteractions(reference.goldstandard, elutionDatas, scores, outDir + ".pred.txt", useForest)
 
 def bench_scores(reference, elutionDatas, scores, outDir, useForest=False):
