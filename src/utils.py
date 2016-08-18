@@ -7,139 +7,84 @@ import subprocess
 import gzip
 import math
 import numpy as np
+import CalculateCoElutionScores as CS
+import copy
+
+def getSubSet(eData, indices):
+	eData.elutionMat = np.array(eData.elutionMat)
+	eData.elutionMat = eData.elutionMat[:, indices]
+	eData.normedElutionMat = eData.normedElutionMat[:, indices]
+	not_empty_rows = np.where(eData.elutionMat.any(1))[0]
+#	eData.elutionMat = eData.elutionMat[not_empty_rows, :] do not remove empty rows else index two prot needs to be readjusted
+	prots_todel = []
+	for prot in eData.prot2Index:
+		prot_index = eData.prot2Index[prot]
+		if prot_index not in not_empty_rows: prots_todel.append(prot)
+
+	for prot in prots_todel:
+		del eData.prot2Index[prot]
+
+	return eData
+
+def get_sim_eData(eD1, eD2, score, cut_off=0.5):
+	sharedprots = set(eD1.prot2Index.keys()) & set(eD2.prot2Index.keys())
+	matched_prots = set([])
+	scores = []
+	score1 = copy.deepcopy(score)
+	score2 = copy.deepcopy(score)
+	for prot in sharedprots:
+		profileD1, _ = score1.getScores(prot, prot, eD1)
+		score.clear()
+		profileD2, _ = score2.getScores(prot, prot, eD2)
+		score.clear()
+		sim_score = score.calculateScore(profileD1, profileD2)
+		scores.append(sim_score)
+	return sum(scores)/len(scores)
+#		if sim_score > cut_off:
+#			matched_prots.add(prot)
+#	return len(matched_prots)/len(sharedprots)
+
+def main():
+	experimentF, outDir = sys.argv[1:]
+
+	experiments = CS.ElutionData(experimentF)
+
+	ref_exp = getSubSet(copy.deepcopy(experiments), range(10))
+	tmt1 = getSubSet(copy.deepcopy(experiments), range(10, 20))
+	tmt2 = getSubSet(copy.deepcopy(experiments), range(20, 30))
+	tmt3 = getSubSet(copy.deepcopy(experiments), range(30, 40))
+	tmt_combined = getSubSet(copy.deepcopy(experiments), range(10,40))
+
+	get_sim_eData(ref_exp, tmt1, CS.Apex())
+
+	experiments = [ref_exp, tmt1, tmt2, tmt3]
+
+	exp_names = ["Ref", "TMT1", "TMT2", "TMT3"]
+
+	simMat = [[0]*len(experiments)]*len(experiments)
+
+	scores = [CS.Apex(), CS.Wcc(), CS.MutualInformation(), CS.Euclidiean(), CS.Pearson(), CS.Jaccard()]
+#	scores = [CS.Wcc(), CS.Euclidiean()]
 
 
-def getSubset(tmpData, keys):
-        (a,b) = (set(tmpData[asKey(keys[0])]), set(tmpData[asKey(keys[1])]))
-        return mkGroups(a, b)
-
-def mkGroups(a, b):
-        both = a & b
-        total = a | b
-        return (a - both, b - both, both, total)
-
-def makeRtable(phosphoDataF, useNA = True, fastaF = ""):
-	out = "PoshpoSiteID"
-
-	if fastaF != "":
-		fastaData = readFastaFile(fastaF)
-		out += "\tProtSize"
-	
-	phosData = readData(phosphoDataF, np.array([4,5,3,2]), np.array([0,6,8,9]))
-
-
-        counts = {}
-        for experiment in phosData:
-                for (protID, start, ascore, copyNmbr) in phosData[experiment]:
-                        prot = "_".join([protID, start])
-			if fastaF != "": prot += "\t%i" % (len(fastaData[protID]))
-                        if prot not in counts: counts[prot] = {}
-                        if experiment not in counts[prot]: counts[prot][experiment] = 0
-                        counts[prot][experiment] += int(copyNmbr)
-
-
-        allExperiments = sorted(phosData.keys())
-
-	
-
-        for experiment in allExperiments:
-                expname = "_".join(experiment)
-                out += "\t%s" % (expname)
-        out += "\n"
-
-        for prot in counts:
-                prot
-                thisCounts = ""
-                for experiment in allExperiments:
-                        if experiment not in counts[prot]:
-                                if useNA: 
-					thisCounts += "\tNA"
+	for st in scores:
+		datFH = open(outDir + ".%s" % st.name + ".txt", "w")
+		datFH.write("\t"+"\t".join(exp_names) + "\n")
+		for i in range(len(experiments)):
+			datFH.write(exp_names[i])
+			for j in range(len(experiments)):
+				if i == j:
+					datFH.write("\t1.0")
 				else:
-					 thisCounts += "\t0"
-                        else:
-                                thisCounts += "\t%i" % (counts[prot][experiment])
-                out += prot + thisCounts + "\n"
-
-	return out
-
-def getCollumnAsArray(index, matrix):
-	out = set([])
-	for row in matrix:
-		out.add(row[index])
-	return list(out)
-
-def getOverlapps(thisSet, dictWithSets, keys = ""):
-	out = []
-	if keys == "": keys = dictWithSets.keys()
-	for key in keys:
-		out.append(tuple([key, thisSet & set(dictWithSets[key])]))
-	return out
-
-def asKey(key):
-	return tuple([key])
-
-def containsReturnResultAsString(key, dic, trueVal = "Y", falseVal = "N"):
-	if key in dic:
-		return trueVal
-	else:
-		return falseVal
-
-def con(array, delim = "\t"):
-	return delim.join(map(str, array))
-
-def readData(dataF, keyColNumbers, valueRowNumbers, primKeyMap = "", header = True, sep="\t"):
-	out = {}
-	dataFH = open(dataF)
-	if header: dataFH.readline() 
-	for line in dataFH:
-		line = line.rstrip()
-		lineSplit = np.array(line.split(sep))
-#		if len(lineSplit)<2: continue
-		key = tuple(lineSplit[keyColNumbers])
-		primkey = tuple([key[0]])
-		if primKeyMap != "" and primkey in primKeyMap:
-			if len(primKeyMap[primkey]) ==1:
-				newPrimKey = primKeyMap[primkey][0][0]
-				key = list(key[1:])
-				key.insert(0, newPrimKey)
-				key = tuple(key)
-#			else:
-#				print "no uniq map for " + primkey[0]
-#		if primKeyMap != "" and primkey not in primKeyMap:
-#			print "no mapping found for " + primkey[0]
-		value = tuple(lineSplit[valueRowNumbers])
-		if key not in out: out[key] = []
-		if value not in out[key]: out[key].append(value)
-	dataFH.close()
-	return out
-
-def readFastaFile(fastaF):
-	out = {}
-	seq = ""
-	thisID = ""
-	inF = open(fastaF)
-	for line in inF:
-		line = line.rstrip()
-		matchedID = re.match(">\w\w\|(.*?)\|(.*?) ", line)
-		if(matchedID):
-			if(thisID == ""):
-				thisID =  matchedID.group(1)
-				continue
-			else:
-				out[thisID] = seq
-				thisID =  matchedID.group(1)
-				seq = ""
-				continue
-		seq += line
-	# flush last entry
-	out[thisID] = seq
-	inF.close()
-	return out
-
+					datFH.write("\t" + str(get_sim_eData(experiments[i], experiments[j], st)))
+			datFH.write("\n")
+		datFH.close()
+		cmd =  "src/plotHeatmap.R %s.%s.txt %s %s.%s.pdf" % (outDir, st.name, st.name, outDir, st.name)
+		os.system(cmd)
 
 
 if __name__ == "__main__":
-        try:
-                main()
-        except KeyboardInterrupt:
-                pass
+	try:
+		main()
+	except KeyboardInterrupt:
+		pass

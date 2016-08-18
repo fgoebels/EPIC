@@ -26,6 +26,7 @@ def main():
 	print reference.goldstandard_positive
 #	print reference.goldstandard_negative
 
+
 class Goldstandard_from_reference_File():
 	def __init__(self, refF, ratio=5, found_prots=""):
 		self.goldstandard_positive, self.goldstandard_negative = self.read_reference_file(refF, found_prots)
@@ -54,14 +55,19 @@ class Goldstandard_from_reference_File():
 			return pos, neg
 
 class Goldstandard_from_cluster_File():
-	def __init__(self, gsF, ratio=500):
+	def __init__(self, gsF, ratio=5):
 		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF)
+		self.ratio = ratio
 		self.goldstandard = set([])
-		if len(self.goldstandard_positive)*ratio>len(self.goldstandard_negative):
+		self.rebalance()
+
+	def rebalance(self):
+		if len(self.goldstandard_positive)*self.ratio>len(self.goldstandard_negative):
 			print "Warning: not enough negative data points in reference to create desired ratio"
 			self.goldstandard = self.goldstandard_positive | self.goldstandard_negative
 		else:
-			self.goldstandard = self.goldstandard_positive | set(random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*ratio))
+			self.goldstandard = self.goldstandard_positive | set(random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*self.ratio))
+
 
 	def readGS(self, gsF):
 		negative = set([])
@@ -122,9 +128,10 @@ class Goldstandard_from_CORUM():
 				if protA == protB: continue
 				edge = tuple(sorted([protA, protB]))
 				if len(prot2cluster[protA] & prot2cluster[protB]) > 0:
-					self.goldstandard_positive.add(edge)
+					self.goldstandard_positive.add(tuple(sorted([protA, protB, "positive"])))
+
 				else:
-					self.goldstandard_negative.add(edge)
+					self.goldstandard_negative.add(tuple(sorted([protA, protB, "negative"])))
 		
 
 	# @author Florian Goebels
@@ -138,19 +145,19 @@ class Goldstandard_from_CORUM():
 	def makeReferenceDataSet(self):
 		def remove_not_found_prots(protlist, foundprots):
 			out = set([])
-			for (protA, protB) in protlist:
+			for (protA, protB, label) in protlist:
 				if protA not in foundprots or protB not in foundprots: continue
-				out.add((protA, protB))
+				out.add((protA, protB, label))
 			return out
 		self.goldstandard_positive = remove_not_found_prots(self.goldstandard_positive, self.found_prots)
 		self.goldstandard_negative = remove_not_found_prots(self.goldstandard_negative, self.found_prots)
 		reference = set([])
 		pos = set([])
 		neg = set([])
-		for (protA, protB) in self.goldstandard_positive:
+		for (protA, protB, label) in self.goldstandard_positive:
 			pos.add((protA, protB, "positive"))
 
-		for (protA, protB) in random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*self.ratio):
+		for (protA, protB, label) in random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*self.ratio):
 			neg.add((protA, protB, "negative"))
 
 		reference = pos
@@ -218,7 +225,7 @@ class CORUM():
 	# @author Florian Goebels
 	# reads in CORUM from flat file
 	def readCORUM(self):
-		complexes2prot = utils.readData(self.corum_file, np.array([0]), np.array([3,4,6]), sep=";")
+		complexes2prot = readData(self.corum_file, np.array([0]), np.array([3,4,6]), sep=";")
 		for comp in complexes2prot:
 			for anno in complexes2prot[comp]:
 				(species, prots, evidence) = anno
@@ -421,6 +428,32 @@ class Inparanoid():
 		xmldoc = minidom.parseString(xml_str)
 		return xmldoc
 		
+
+def readData(dataF, keyColNumbers, valueRowNumbers, primKeyMap = "", header = True, sep="\t"):
+        out = {}
+        dataFH = open(dataF)
+        if header: dataFH.readline()
+        for line in dataFH:
+                line = line.rstrip()
+                lineSplit = np.array(line.split(sep))
+#               if len(lineSplit)<2: continue
+                key = tuple(lineSplit[keyColNumbers])
+                primkey = tuple([key[0]])
+                if primKeyMap != "" and primkey in primKeyMap:
+                        if len(primKeyMap[primkey]) ==1:
+                                newPrimKey = primKeyMap[primkey][0][0]
+                                key = list(key[1:])
+                                key.insert(0, newPrimKey)
+                                key = tuple(key)
+#                       else:
+#                               print "no uniq map for " + primkey[0]
+#               if primKeyMap != "" and primkey not in primKeyMap:
+#                       print "no mapping found for " + primkey[0]
+                value = tuple(lineSplit[valueRowNumbers])
+                if key not in out: out[key] = []
+                if value not in out[key]: out[key].append(value)
+        dataFH.close()
+        return out
 
 if __name__ == "__main__":
 		try:

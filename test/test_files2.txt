@@ -1,2 +1,0 @@
-/Users/florian/workspace/EPIC/test/1D_WORM/Ce_BNF.prot_count_uniqpeps_FDR0010
-/Users/florian/workspace/EPIC/test/1D_WORM/Ce_CRF.prot_count_uniqpeps_FDR0010

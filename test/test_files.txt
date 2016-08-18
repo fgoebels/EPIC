@@ -1,1 +1,0 @@
-/Users/florian/workspace/EPIC/test/1D_WORM/Ce_all_0628.prot_count_uniqpeps_FDR0010
