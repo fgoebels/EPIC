@@ -106,7 +106,7 @@ class Goldstandard_from_CORUM():
 	def __init__(self, targetSpecies, ratio = 5, found_prots = ""):
 		inparanoid = ""
 		if targetSpecies != "9606":
-			inparanoid = Inparanoid(targetSpecies, foundProts=refProts)
+			inparanoid = Inparanoid(targetSpecies, foundProts=found_prots)
 		corum = CORUM()
 		self.complexes = corum
 		self.ratio = ratio
@@ -354,9 +354,11 @@ class Inparanoid():
 	# @param
 	def mapEdges(self, edges):
 		mapped_edges = set([])
-		for (protA, protB) in edges:
+		for (protA, protB, label) in edges:
 			if protA not in self.orthmap or protB not in self.orthmap: continue
-			mapped_edges.add(tuple(sorted([self.orthmap[protA], self.orthmap[protB]])))
+			edge = sorted([self.orthmap[protA], self.orthmap[protB]])
+			edge.append(label)
+			mapped_edges.add(tuple(edge))
 		return mapped_edges
 
 	# @author Florian Goebels

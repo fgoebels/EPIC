@@ -30,7 +30,6 @@ import random
 import multiprocessing as mp
 from functools import partial
 import GoldStandard as GS
-import score_nodependencies as sn
 import ctypes
 import logging
 
@@ -967,16 +966,16 @@ def bench_scores(scoreCalc, scores, outDir, useForest=False, folds=10):
 	eval_scores = []
 	cutoff_curves = []
 	# Make eval for each score by itself
-	for st in scores:
-		print "Evaluating ml based on %s" % st.name
-		this_sc = scoreCalc.retrieve_scores([st])
-		this_sc.filter_predictions_coelutionscore()
-		this_sc.rebalance()
-		print this_sc.countLabels()
-		es, pr, roc = get_eval(this_sc, useForest, folds)
-		pr_curves.append((st.name, pr))
-		roc_curves.append((st.name, roc))
-		eval_scores.append((st.name, es))
+#	for st in scores:
+#		print "Evaluating ml based on %s" % st.name
+#		this_sc = scoreCalc.retrieve_scores([st])
+#		this_sc.filter_predictions_coelutionscore()
+#		this_sc.rebalance()
+#		print this_sc.countLabels()
+#		es, pr, roc = get_eval(this_sc, useForest, folds)
+#		pr_curves.append((st.name, pr))
+#		roc_curves.append((st.name, roc))
+#		eval_scores.append((st.name, es))
 
 	# Make combined eval
 	print "Evaluating combined ml"
@@ -1010,7 +1009,7 @@ def main():
 	useForest = useForest == "True"
 
 #	scores = [MutualInformation(2), Bayes3(), Euclidiean(), Wcc(), Jaccard(), Poisson(100)]
-	scores = [Poisson(100), Wcc()]
+	scores = [Wcc(), Bayes3(), Euclidiean(), MutualInformation(2), Jaccard(), Pearson()]
 #	scores = [MutualInformation(2), Bayes3(), Euclidiean(), Pearson(), Wcc(), Jaccard(), Poisson(100), Apex()]
 
 	elutionFH = open(elutionFiles)
@@ -1024,12 +1023,13 @@ def main():
 
 
 #	Calcualte reference scores
-#	reference = GS.Goldstandard_from_reference_File(refF, found_prots=elutionProts)
-	reference = GS.Goldstandard_from_CORUM("9606", ratio=5, found_prots=elutionProts)
+	reference = GS.Goldstandard_from_reference_File(refF, found_prots=elutionProts)
+#	reference = GS.Goldstandard_from_CORUM("6239", ratio=5, found_prots=elutionProts) # Human: 9606, Worm: 6239,
+	print len(elutionProts)
 	goldstandard = reference.goldstandard_negative | reference.goldstandard_positive
 	print len(goldstandard)
 	scoreCalc_train = CalculateCoElutionScores()
-	scoreCalc_train.calculate_coelutionDatas(elutionDatas, scores, goldstandard, filter=True, predict=False)
+	scoreCalc_train.calculate_coelutionDatas(elutionDatas, scores, goldstandard, filter=False, predict=False)
 	scoreCalc_train.filter_predictions_coelutionscore()
 	dataFH = open(outDir + ".reference.scores.txt", "w")
 	dataFH.write(scoreCalc_train.toTable())
@@ -1042,7 +1042,7 @@ def main():
 
 	scoreCalc_train.rebalance()
 
-#	bench_scores(scoreCalc_train, scores, outDir, useForest)
+	bench_scores(scoreCalc_train, scores, outDir, useForest)
 
 	scoreCalc_topred = CalculateCoElutionScores()
 	scoreCalc_topred.calculate_coelutionDatas(elutionDatas, scores, set(scoreCalc_train.scores.keys()), filter=True, predict=True)
