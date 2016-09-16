@@ -4,7 +4,8 @@ from collections import defaultdict
 
 
 # @ author Lucas Ming Hu
-# Extract functional evidence from GeneMANIA database  
+# Extract functional evidence from GeneMANIA database
+# Combine evidences from the same source into a single line
 
 #create a dictionary to store all input protein-protein pairs.
 proteinsPairDictionary = defaultdict(list)
@@ -69,7 +70,7 @@ for key1 in evidenceDictionary:
             proteinsPairDictionary[key2].append(0)
                         
 
-geneMANIAOutput = open((sys.argv[1])[:-4] + "_GeneMANIAFeatures_test.txt", "w")
+geneMANIAOutput = open((sys.argv[1])[:-4] + "_GeneMANIAFeatures_combinedEvidence.txt", "w")
                    
 for edge in proteinsPairDictionary:
     geneMANIAOutput.write(edge)
