@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 from __future__ import division
 import numpy as np
 import random
@@ -20,23 +20,41 @@ def main():
 	elutionData = CalcS.ElutionData(elutionFile)
 	refProts = set(elutionData.prot2Index.keys())
 
-	reference = Goldstandard_from_CORUM("9606", ratio=1, found_prots = refProts)
+	reference = Goldstandard_from_CORUM("9606", found_prots = refProts)
 	print len(reference.goldstandard_positive)
 	print len(reference.goldstandard_negative)
 	print reference.goldstandard_positive
 #	print reference.goldstandard_negative
 
+class GS_from_PPIs():
+	def __init__(self, refF, found_ppis=""):
+		self.goldstandard_positive = set([])
+		self.goldstandard_negative = set([])
+		allprots = set([])
+		refFH = open(refF)
+		for line in refFH:
+			line = line.rstrip()
+			(idA, idB) = line.split("\t")
+			allprots.add(idA)
+			allprots.add(idB)
+			pos_edge = "\t".join(sorted([idA, idB]))
+			self.goldstandard_positive.add(pos_edge)
+		refFH.close()
+		allprots = list(allprots)
+		for i in range(len(allprots)):
+			prot_i = allprots[i]
+			for j in range(i+1, len(allprots)):
+				prot_j = allprots[j]
+				edge = "\t".join(sorted([prot_i, prot_j]))
+				if edge not in found_ppis: continue
+				if edge in self.goldstandard_positive: continue
+				self.goldstandard_negative.add(edge)
+
+
 
 class Goldstandard_from_reference_File():
-	def __init__(self, refF, ratio=5, found_prots=""):
+	def __init__(self, refF, found_prots=""):
 		self.goldstandard_positive, self.goldstandard_negative = self.read_reference_file(refF, found_prots)
-		self.rebalance(ratio)
-
-	def rebalance(self, ratio = 5):
-		if len(self.goldstandard_positive) * ratio > len(self.goldstandard_negative):
-			print "Warning: not enough negative data points in reference to create desired ratio"
-			return self.goldstandard_positive | self.goldstandard_negative
-		self.goldstandard = self.goldstandard_positive | set(random.sample(self.goldstandard_negative, len(self.goldstandard_positive) * ratio))
 
 	def read_reference_file(self, refF, found_prots=""):
 			pos = set([])
@@ -48,26 +66,14 @@ class Goldstandard_from_reference_File():
 					if found_prots != "":
 							if idA not in found_prots: continue
 							if idB not in found_prots: continue
-					idA, idB = sorted([idA, idB])
-					edge = tuple([idA, idB, label])
+					edge = "\t".join(sorted([idA, idB]))
 					if label == "negative": neg.add(edge)
 					if label == "positive": pos.add(edge)
 			return pos, neg
 
 class Goldstandard_from_cluster_File():
-	def __init__(self, gsF, ratio=5):
+	def __init__(self, gsF):
 		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF)
-		self.ratio = ratio
-		self.goldstandard = set([])
-		self.rebalance()
-
-	def rebalance(self):
-		if len(self.goldstandard_positive)*self.ratio>len(self.goldstandard_negative):
-			print "Warning: not enough negative data points in reference to create desired ratio"
-			self.goldstandard = self.goldstandard_positive | self.goldstandard_negative
-		else:
-			self.goldstandard = self.goldstandard_positive | set(random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*self.ratio))
-
 
 	def readGS(self, gsF):
 		negative = set([])
@@ -86,11 +92,11 @@ class Goldstandard_from_cluster_File():
 			for j in range(i+1, len(prots)):
 				protB = prots[j]
 				clustB = prot2clusters[protB]
-				nodeA, nodeB = sorted([protA, protB])
+				edge = "\t".join(sorted([protA, protB]))
 				if len(clustA & clustB) > 0:
-					positive.add((nodeA, nodeB, "positive"))
+					positive.add(edge)
 				else:
-					negative.add((nodeA, nodeB, "nagtive"))
+					negative.add(edge)
 		return positive, negative
 
 # @author Florian Goebels
@@ -101,15 +107,13 @@ class Goldstandard_from_CORUM():
 	# @param
 	#		complexes CORUM complex object Human complexes
 	#		orthmap Inparanoid object for mapping Human CORUM complexes to target species
-	#		ratio ratio for negative to postivie with |negative| = ratio * |positive|
 	#		found_prots proteins identified via MS cofractionation either as list
-	def __init__(self, targetSpecies, ratio = 5, found_prots = ""):
+	def __init__(self, targetSpecies, found_prots = "", source_species_regex = "(Human|Mammalia)"):
 		inparanoid = ""
-		if targetSpecies != "9606":
+		if targetSpecies != "9606" and "Human" in source_species_regex:
 			inparanoid = Inparanoid(targetSpecies, foundProts=found_prots)
-		corum = CORUM()
+		corum = CORUM(source_species_regex = source_species_regex)
 		self.complexes = corum
-		self.ratio = ratio
 		self.found_prots = found_prots
 		self.goldstandard_positive = set([])
 		self.goldstandard_negative = set([])
@@ -117,7 +121,6 @@ class Goldstandard_from_CORUM():
 		if inparanoid != "":
 			self.orthmap = inparanoid
 			self.mapReferenceData()
-		self.makeReferenceDataSet()
 
 	# @author Florian Goebels
 	# creats all possible positive and negative protein interactions based on CORUM complex membership
@@ -126,12 +129,12 @@ class Goldstandard_from_CORUM():
 		for protA in prot2cluster:
 			for protB in prot2cluster:
 				if protA == protB: continue
-				edge = tuple(sorted([protA, protB]))
+				edge = "\t".join(sorted([protA, protB]))
 				if len(prot2cluster[protA] & prot2cluster[protB]) > 0:
-					self.goldstandard_positive.add(tuple(sorted([protA, protB, "positive"])))
+					self.goldstandard_positive.add(edge)
 
 				else:
-					self.goldstandard_negative.add(tuple(sorted([protA, protB, "negative"])))
+					self.goldstandard_negative.add(edge)
 		
 
 	# @author Florian Goebels
@@ -139,31 +142,6 @@ class Goldstandard_from_CORUM():
 	def mapReferenceData(self):
 		self.goldstandard_positive = self.orthmap.mapEdges(self.goldstandard_positive)
 		self.goldstandard_negative = self.orthmap.mapEdges(self.goldstandard_negative)
-	
-	# @author Florian Goebels
-	# creates reference data set with lable information and set ration of positive and negative protein interactions
-	def makeReferenceDataSet(self):
-		def remove_not_found_prots(protlist, foundprots):
-			out = set([])
-			for (protA, protB, label) in protlist:
-				if protA not in foundprots or protB not in foundprots: continue
-				out.add((protA, protB, label))
-			return out
-		self.goldstandard_positive = remove_not_found_prots(self.goldstandard_positive, self.found_prots)
-		self.goldstandard_negative = remove_not_found_prots(self.goldstandard_negative, self.found_prots)
-		reference = set([])
-		pos = set([])
-		neg = set([])
-		for (protA, protB, label) in self.goldstandard_positive:
-			pos.add((protA, protB, "positive"))
-
-		for (protA, protB, label) in random.sample(self.goldstandard_negative, len(self.goldstandard_positive)*self.ratio):
-			neg.add((protA, protB, "negative"))
-
-		reference = pos
-		reference.update(neg)
-		self.goldstandard = reference
-
 
 # @author Florian Goebels
 # Wrapper class for downloading and handling CORUM protein complex information taken from here: http://mips.helmholtz-muenchen.de/genre/proj/corum/
@@ -176,6 +154,7 @@ class CORUM():
 	#		overlap_cutoff merge complexes that have an overlap_score > overlap_cutoff
 	#		source_species select for which species the complexes should be maintained
 	def __init__(self, lb = 1, ub=50, overlap_cutoff=0.5, source_species_regex = "(Human|Mammalia)"):
+
 		# static regex for identifying valid bochemical evidences codes
 		self.biochemical_evidences_regex ="MI:(2193|2192|2191|2197|2195|2194|2199|2198|0807|0401|0400|0406|0405|0404|0089|0084|0081|0007|0006|0004|0513|1029|0979|0009|0008|0841|1312|2188|2189|0411|0412|0413|0928|0415|0417|0098|0729|0920|0921|0603|0602|0605|0604|0402|0095|0096|0606|0091|0092|1142|1145|1147|0019|1309|0696|0697|0695|0858|0698|0699|0425|0424|0420|0423|0991|0990|0993|0992|0995|0994|0997|0996|0999|0998|1028|1011|1010|1314|0027|1313|0029|0028|0227|0226|0225|0900|0901|0430|0434|0435|1008|1009|0989|1004|1005|0984|1007|1000|0983|1002|1229|1087|1325|0034|0030|0031|0972|0879|0870|1036|0678|1031|1035|1034|0676|0440|1138|1236|0049|0048|1232|0047|1137|0419|0963|1026|1003|1022|0808|0515|0514|1187|0516|0511|1183|0512|0887|0880|0889|0115|1006|1249|0982|0953|1001|0508|0509|0657|0814|1190|1191|0813|0066|0892|0899|1211|0108|1218|1352|1354|0949|0946|0947|0073|0071|1019|2168|0700|2167|1252|1017|0276|1189|1184)"
 		self.corum_file = os.sep.join(os.path.abspath(__file__).split(os.sep)[:-2]) + os.sep + "data" + os.sep +"corum.txt"
@@ -354,10 +333,10 @@ class Inparanoid():
 	# @param
 	def mapEdges(self, edges):
 		mapped_edges = set([])
-		for (protA, protB, label) in edges:
+		for edge in edges:
+			protA, protB = edge.split("\t")
 			if protA not in self.orthmap or protB not in self.orthmap: continue
-			edge = sorted([self.orthmap[protA], self.orthmap[protB]])
-			edge.append(label)
+			edge = "\t".join(sorted([self.orthmap[protA], self.orthmap[protB]]))
 			mapped_edges.add(tuple(edge))
 		return mapped_edges
 
