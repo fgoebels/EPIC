@@ -2,13 +2,11 @@
 from __future__ import division
 import numpy as np
 import random
-import utils 
 import sys
 import urllib
 from xml.dom import minidom
 import os
 import wget
-import CalculateCoElutionScores as CalcS
 import re
 
 
@@ -21,9 +19,9 @@ def main():
 	refProts = set(elutionData.prot2Index.keys())
 
 	reference = Goldstandard_from_CORUM("9606", found_prots = refProts)
-	print len(reference.goldstandard_positive)
-	print len(reference.goldstandard_negative)
-	print reference.goldstandard_positive
+#	print len(reference.goldstandard_positive)
+#	print len(reference.goldstandard_negative)
+#	print reference.goldstandard_positive
 #	print reference.goldstandard_negative
 
 class GS_from_PPIs():
@@ -72,7 +70,7 @@ class Goldstandard_from_reference_File():
 			return pos, neg
 
 class Goldstandard_from_cluster_File():
-	def __init__(self, gsF):
+	def __init__(self, gsF, found_prots=""):
 		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF)
 
 	def readGS(self, gsF):
@@ -80,12 +78,15 @@ class Goldstandard_from_cluster_File():
 		positive = set([])
 		gsFH = open(gsF)
 		prot2clusters = {}
+		i = 0
 		for line in gsFH:
 			line = line.rstrip()
-			idA, clusters = line.split("\t")
-			clusters = set(clusters.split(";"))
-			prot2clusters[idA] = clusters
-		prots = prot2clusters.keys()	
+			prots = line.split("\t")
+			for prot in prots:
+					if prot not in prot2clusters: prot2clusters[prot] = set([])
+					prot2clusters[prot].add(i)
+			i+=1
+		prots = prot2clusters.keys()
 		for i in range(len(prots)):
 			protA = prots[i]
 			clustA = prot2clusters[protA]
@@ -224,7 +225,7 @@ class CORUM():
 		def overlap(a,b):
 			tmpa = set(a)
 			tmpb = set(b)
-			overlap = len(tmpa & tmpb)/len(tmpa | tmpb)
+			overlap = len(tmpa & tmpb)/min(len(tmpa),len(tmpb))
 			return overlap
 
 		for i in range(len(allComplexes)):
