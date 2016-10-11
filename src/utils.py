@@ -23,6 +23,14 @@ def benchmark():
 	positive = reference.goldstandard_positive
 	negative = reference.goldstandard_negative
 
+	reference_go = GS.Goldstandard_from_cluster_File("/Users/florian/workspace/scratch/EPIC_out/clusters/Go_elegans_complex_experiments_mapped.txt", found_prots="")
+	positive_go = reference_go.goldstandard_positive
+	negative_go = reference_go.goldstandard_negative
+
+	positive = positive - positive_go
+	negative = negative - negative_go
+
+	go_clusters = readclusters("/Users/florian/workspace/scratch/EPIC_out/clusters/Go_elegans_complex_experiments_mapped.txt")
 	corum_cluster = readclusters("/Users/florian/workspace/scratch/EPIC_out/clusters/CORUM_elegans_complexes.txt")
 
 	scorecalc = CS.CalculateCoElutionScores()
@@ -30,8 +38,8 @@ def benchmark():
 	scorecalc.addLabels(positive, negative)
 
 	outFH = open("/Users/florian/workspace/scratch/EPIC_out/FS.txt", "w")
-	print >> outFH, "%s\tTraining size\tPrecision\tRecall\tF-measure\tauPR\tauROC\tNum pred PPIs\tNum pred Clusters\tNum clusters overlapp with CORUM" % (" ".join(all_score_names))
-	for score_subset in list(powerset(scores)):
+	print >> outFH, "%s\tTraining size\tPrecision\tRecall\tF-measure\tauPR\tauROC\tNum pred PPIs\tNum pred Clusters\tNum clusters overlapp with CORUM\tNum clusters overlapp with GO" % (" ".join(all_score_names))
+	for score_subset in ((CS.Pearson(),), (CS.Poisson(50), CS.Wcc()), (scores)):#list(powerset(scores)):
 		if len(score_subset) ==0: continue
 		this_sc = copy.deepcopy(scorecalc)
 		this_sc.retrieve_scores(score_subset)
@@ -57,11 +65,10 @@ def benchmark():
 		out_dir = "/Users/florian/workspace/scratch/EPIC_out/All"
 		clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, out_dir)
 		os.system(clustering_CMD)
-		pred_clusters = readclusters("%s.clust.tx" % (out_dir))
-		matched_clusters = getOverlapp(pred_clusters, corum_cluster)
-
-		line = "%s\t%i\t%s\t%i\t%i\t%i" % (fs, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis, len(pred_clusters) , matched_clusters)
-
+		pred_clusters = readclusters("%s.clust.txt" % (out_dir))
+		matched_corum_clusters = getOverlapp(pred_clusters, corum_cluster)
+		matched_go_clusters = getOverlapp(pred_clusters, go_clusters)
+		line = "%s\t%i\t%s\t%i\t%i\t%i" % (fs, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis, len(pred_clusters) , matched_corum_clusters, matched_go_clusters)
 		print line
 		print >> outFH, line
 	outFH.close()
@@ -130,9 +137,11 @@ def cluster_overlapp():
 	positive_go = reference_go.goldstandard_positive
 	negative_go = reference_go.goldstandard_negative
 
+	combined = positive_corum&positive_go
+
 	print "\tCORUM\tGO\tCORUM+GO"
-	print "positive\t%i\t%i\t%i" % (len(positive_corum), len(positive_go), len(positive_corum&positive_go))
-	print "negative\t%i\t%i\t%i" % (len(negative_corum), len(negative_go), len(negative_corum&negative_go))
+	print "positive\t%i\t%i\t%i" % (len(positive_corum - combined), len(positive_go - combined), len(positive_corum&positive_go))
+	print "negative\t%i\t%i\t%i" % (len(negative_corum - combined), len(negative_go - combined), len(negative_corum&negative_go))
 
 	scorecalc = CS.CalculateCoElutionScores()
 	scorecalc.readTable("/Users/florian/workspace/scratch/EPIC_out/All.scores.sel.txt")
@@ -141,14 +150,15 @@ def cluster_overlapp():
 	negative_go     = found_ppis & negative_go
 	negative_corum  = found_ppis & negative_corum
 	positive_corum  = found_ppis & positive_corum
+	combined = positive_corum & positive_go
 
 	print "\tCORUM\tGO\tCORUM+GO"
-	print "positive\t%i\t%i\t%i" % (len(positive_corum), len(positive_go), len(positive_corum&positive_go))
-	print "negative\t%i\t%i\t%i" % (len(negative_corum), len(negative_go), len(negative_corum&negative_go))
+	print "positive\t%i\t%i\t%i" % (len(positive_corum - combined), len(positive_go - combined), len(positive_corum&positive_go))
+	print "negative\t%i\t%i\t%i" % (len(negative_corum - combined), len(negative_go - combined), len(negative_corum&negative_go))
 
 def main():
 	benchmark()
-
+	#cluster_overlapp()
 
 if __name__ == "__main__":
 	try:

@@ -8,31 +8,21 @@ import math
 import rpy2.robjects as robjects
 import rpy2.robjects.packages as rpackages
 from scipy.spatial import distance
-import itertools
 import operator
-import copy
-from sklearn import cross_validation
-from sklearn.cross_validation import StratifiedKFold
-from collections import defaultdict
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import precision_recall_curve, roc_curve, average_precision_score, roc_auc_score, precision_recall_fscore_support
-from sklearn.cross_validation import train_test_split, cross_val_predict
-from sklearn.preprocessing import label_binarize
+from sklearn.model_selection import  cross_val_predict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import RFECV
 import matplotlib.pyplot as plt
 import inspect
 import os
-import time
 from sklearn import svm
-from sklearn import datasets
 from sklearn import metrics
 import random
 import multiprocessing as mp
-from functools import partial
 import GoldStandard as GS
-from ctypes import c_wchar, c_float
-import logging
 
 subfldr = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"TCSS")))
 sys.path.append(subfldr)
@@ -91,19 +81,6 @@ def getScore(inputQ, outputList):
 		else:
 			outputList.put((score_index, 0.0))
 		inputQ.task_done()
-
-def worker(input, output, results):
-	for func, args in iter(input.get, 'STOP'):
-		ppi, score = func(*args)
-		if float(score) > 0.5: results.append(ppi)
-		output.put("%s\t%s" % (ppi, score))
-		input.task_done()
-
-def listener(output, fh):
-	for line in iter(output.get, 'STOP'):
-		print >> fh, line
-		fh.flush()
-		output.task_done()
 
 #Contacts:
 #	Florian Goebels - florian.goebels@gmail.com
@@ -919,7 +896,8 @@ class CLF_Wrapper:
 	def geteval(self):
 		all_probas = []
 		all_targets = []
-		for train, test in StratifiedKFold(self.targets, self.folds):
+		skf = StratifiedKFold(self.folds)
+		for train, test in skf.split(self.data, self.targets): #Depricated code StratifiedKFold(self.targets, self.folds):
 			probas = self.clf.fit(self.data[train], self.targets[train]).predict_proba(self.data[test])
 			all_probas.extend(probas[:,1]) # make sure that 1 is positive class in binarizied class vector
 			all_targets.extend(self.targets[test])
@@ -932,7 +910,8 @@ class CLF_Wrapper:
 	#		folds number of folds default 10
 	def getValScores(self):
 		global num_cores
-		folds = StratifiedKFold(self.targets, self.folds)
+		skf = StratifiedKFold(self.folds)
+		folds = skf.split(self.data, self.targets) # Depricated code StratifiedKFold(self.targets, self.folds)
 		preds = cross_val_predict(self.clf, self.data, self.targets, cv=folds, n_jobs=num_cores)
 		precision = metrics.precision_score(self.targets, preds, average=None)[1]
 		recall = metrics.recall_score(self.targets, preds, average=None)[1]
@@ -1007,14 +986,14 @@ def predictInteractions(scoreCalc, outDir, useForest):
 	outFH = open(outDir + ".pred.txt", "w")
 	for i in range(len(ids_pred)):
 		if pred_class [i] == 1:
-			outFH.write("%s\t%f\n" % ("\t".join(ids_pred[i]), pred_prob[i]))
+			outFH.write("%s\t%f\n" % (ids_pred[i], pred_prob[i]))
 			predicted_ppis += 1
 
 	pred_prob = clf.predict_proba(data_train)
 	pred_class = clf.predict(data_train)
 	for i in range(len(ids_train)):
 		if pred_class [i] == 1:
-			outFH.write("%s\t%f\n" % ("\t".join(ids_pred[i]), pred_prob[i]))
+			outFH.write("%s\t%f\n" % (ids_pred[i], pred_prob[i]))
 			predicted_ppis += 1
 
 	outFH.close()
