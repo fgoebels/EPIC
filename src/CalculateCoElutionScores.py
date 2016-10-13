@@ -596,8 +596,15 @@ class CalculateCoElutionScores():
 		self.IndexToPpi = new_IndexToPpi
 		self.header.extend(toMerge.header[2:])
 
-	def filter_coelutionscore(self, score = 0.5):
-		valid_rows = list(set(np.where(self.scores>score)[0]))
+	def filter_coelutionscore(self, score_cutoff = 0.5):
+		valid_rows = []
+		dim = self.scores.shape
+		for i in range(dim[0]):
+			for j in range(dim[1]):
+				if self.scores[i][j] > 0.5:
+					valid_rows.append(i)
+					break
+#		valid_rows = list(set(np.where(self.scores>score_cutoff)[0]))
 		self.scores = self.scores[valid_rows,:]
 		new_IndexToPpi = {}
 		new_ppiToIndex = {}
@@ -684,12 +691,11 @@ class CalculateCoElutionScores():
 	# @Param:	
 	#		scoreTypes	a list of co elutoin score objects
 	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
-	def calculateScores(self, toPred, elutionDatas, scores, outFile):
+	def calculateScores(self, toPred, elutionDatas, scores, outFile, num_cores):
 		task_queue = mp.JoinableQueue()
 		out_queue = mp.Queue()
 		self.scores = []
 		self.ppiToIndex = {}
-		global num_cores
 		num_features = len(scores)*len(elutionDatas)
 		for i in range(num_cores):  # remove one core since listener is a sapareted process
 			mp.Process(target=getScore, args=(task_queue, out_queue)).start()
@@ -719,38 +725,6 @@ class CalculateCoElutionScores():
 			task_queue.put('STOP')
 		outFH.close()
 
-
-		"""
-		if scoreType.parallel == True:
-
-			task_queue = mp.JoinableQueue()
-			out_array = mp.Array(c_float, len(ppiList))
-			# starts process which will be feeded by task_queue
-			global num_cores
-			for i in range(num_cores):  # remove one core since listener is a sapareted process
-				mp.Process(target=getScore, args=(task_queue, out_array, scoreType.calculateScore)).start()
-
-			print len(ppiList)
-			for i in range(len(ppiList)):
-				task_queue.put(i)
-
-			#Wait for all PPIs to be calcualted
-			task_queue.join()
-			#Wait until all results habe been written to output
-			print "done calcualting: " + name
-			for i in range(num_cores):
-				task_queue.put('STOP')
-
-			for i in range(len(ppiList)):
-				self.scores[self.ppiIndex[ppiList[i]]][col_index] = out_array[i]
-
-		else:
-			print "Currently only supprot co-elution features than can be calcualted in parallel"
-			sys.exit()
-
-		scoreType.clear()
-		"""
-
 	def getAllPairs_coelutionDatas(self, elutionDatas):
 		allfilteredPPIs = set([])
 		for elutionData in elutionDatas:
@@ -773,7 +747,6 @@ class CalculateCoElutionScores():
 			for score in scores:
 				self.header.append("%s.%s" % (eD.name, score.name))
 		self.calculateScores(toPred, elutionDatas, scores, outDir + ".scores.txt")
-
 
 	# @author: Florian Goebels
 	# prints table
@@ -806,7 +779,7 @@ class CalculateCoElutionScores():
 			counts[label] += 1
 		return counts
 
-	def readTable(self, scoreF, cutoff=0.5):
+	def readTable(self, scoreF):
 		num_ppis_infile = lineCount(scoreF) -1
 		scoreFH = open(scoreF)
 		self.header = scoreFH.readline().rstrip().split("\t")
@@ -818,7 +791,6 @@ class CalculateCoElutionScores():
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
 			edge_scores = np.nan_to_num(np.array(map(float, linesplit[2:])))
-#			if len(np.where(edge_scores > cutoff)[0])<1: continue
 			self.scores[i,:] = edge_scores
 			self.IndexToPpi[i] = edge
 			self.ppiToIndex[edge] = i
@@ -827,36 +799,24 @@ class CalculateCoElutionScores():
 		#self.scores = np.reshape(self.scores, (i, len(self.header)-2))
 
 	# @author: Florian Goebels
-	# prints arff table for weka
-	def toArffData(self):
-		out = ["@RELATION COFrac"]
-		for colname in self.header[2:]:
-			out.append("@Attribute %s NUMERIC" % (colname))
-		out.append("@ATTRIBUTE class {positive, negative}")
-		out.append("@Data")
-		for idA, idB, label in self.scores:
-			tmp = ",".join(map(str,self.scores[(idA, idB, label)]))
-			tmp += ",%s" % (label)
-			out.append(tmp)
-		return "\n".join(out)
-
-	# @author: Florian Goebels
 	# return stored co elution scores for a given data set in form that is required for sklearn to learn and predict interaction
 	def toSklearnData(self, get_preds = True):
-		data = []
-		targets = []
 		ids = []
+		targets = []
+		used_indeces = []
 		for i in range(self.scores.shape[0]):
 			ppi = self.IndexToPpi[i]
 			label = "?"
 			if ppi in self.positive: label = 1
 			if ppi in self.negative: label = 0
-			scores = self.scores[i,:]
 			if label != "?" or get_preds:
 				targets.append(label)
 				ids.append(ppi)
-				data.append(scores)
-		return ids, np.array(data), np.array(targets)
+				used_indeces.append(i)
+		if get_preds == True:
+			return ids, self.scores, np.array(targets)
+		else:
+			return ids, self.scores[used_indeces, :], np.array(targets)
 
 # @ author Florian Goebels
 # wrapper for machine learning
@@ -867,29 +827,26 @@ class CLF_Wrapper:
 	#		data matrix with features where each row is a data point
 	#		targets list with class lables
 	# 		forest if true ml is random forst, if false ml is svm
-	def __init__(self, data, targets, forest=False, folds =10, useFeatureSelection= False):
+	def __init__(self, data, targets, num_cores, forest=False, folds =10, useFeatureSelection= False):
 		self.data = data
 		self.folds = folds
 		self.targets = targets #label_binarize(targets, classes=[0, 1])
 		self.eval_preds = ""
 		self.eval_targets = ""
+		self.num_cores = num_cores
 		thisCLF = ""
 		if forest:
 #			print("using Random forest")
-			global num_cores
-			thisCLF = RandomForestClassifier(n_estimators=400, n_jobs=num_cores)
+			thisCLF = RandomForestClassifier(n_estimators=400, n_jobs=self.num_cores)
 		else:	
 #			print("Using SVM")
 			thisCLF =  svm.SVC(kernel="linear", probability=True)
-
-		if useFeatureSelection:
-			self.clf = Pipeline([
-				('feature_selection', RFECV(estimator = thisCLF, step = 1, scoring="accuracy")),
-				('classification', thisCLF)
-			])
-		else:
-			self.clf = thisCLF
-
+			if useFeatureSelection:
+				self.clf = Pipeline([
+					('feature_selection', RFECV(estimator=thisCLF, step=1, scoring="accuracy")),
+					('classification', thisCLF)
+				])
+		self.clf = thisCLF
 		self.clf.fit(self.data, self.targets)
 
 	# @author Florian Goebels
@@ -909,10 +866,9 @@ class CLF_Wrapper:
 	# @Param:
 	#		folds number of folds default 10
 	def getValScores(self):
-		global num_cores
 		skf = StratifiedKFold(self.folds)
 		folds = skf.split(self.data, self.targets) # Depricated code StratifiedKFold(self.targets, self.folds)
-		preds = cross_val_predict(self.clf, self.data, self.targets, cv=folds, n_jobs=num_cores)
+		preds = cross_val_predict(self.clf, self.data, self.targets, cv=folds, n_jobs=self.num_cores)
 		precision = metrics.precision_score(self.targets, preds, average=None)[1]
 		recall = metrics.recall_score(self.targets, preds, average=None)[1]
 		fmeasure = metrics.f1_score(self.targets, preds, average=None)[1]
@@ -972,13 +928,13 @@ def plotCurves(curves, outF, xlab, ylab):
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
 # @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest):
+def predictInteractions(scoreCalc, outDir, useForest, num_cores):
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
 	print(data_train.shape)
 	ids_pred, data_pred, targets_pred = scoreCalc.toSklearnData()
 
 	print(data_pred.shape)
-	clf = CLF_Wrapper(data_train, targets_train, forest=useForest, useFeatureSelection=False)
+	clf = CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
 	pred_prob = clf.predict_proba(data_pred)
 	pred_class = clf.predict(data_pred)
 
