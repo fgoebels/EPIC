@@ -1,6 +1,36 @@
 import glob
 import sys
 from collections import defaultdict
+from bs4 import BeautifulSoup
+import urllib
+import urllib2
+import os 
+
+def catchFile(species): 
+    speciesList = ['Danio_rerio']
+    if species not in speciesList:
+        return None 
+
+    urlbase = 'http://genemania.org/data/current'
+    speciesURL = os.path.join(urlbase, species)
+    r = urllib.urlopen(speciesURL).read()
+    soup = BeautifulSoup(r)
+
+    table = soup.find('table')
+
+    allcell = []
+    for row in table.find_all('tr'):
+        for col in row.find_all('td'):
+            allcell.append(col.getText())
+
+    #filtering 
+    result = [] 
+    for c in allcell:
+        if '.txt' in c:
+            result.append(os.path.join(speciesURL,c))
+
+    return result
+
 
 
 # @ author Lucas Ming Hu
@@ -27,10 +57,13 @@ def average(secondaryEvidenceDic):
     
     return resultDict 
 
-# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" to eliminate circularity
-functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Predicted', 'Shared']
+# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" and "Predicted" to eliminate circularity
+functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Shared']
 
 # read files of GeneMANIA database and add features to 
+
+# read online database - by species name
+fps = catchFile('Danio_rerio')
 
 # create the 2-levels' master dictionary,
 # first level key is evidence name
@@ -40,13 +73,14 @@ evidenceDictionary = {}
 for f_evidence in functionalEvidences:
     secondaryEvidenceDic = defaultdict(list)
             
-    for filename in glob.glob('*.txt'):
-        
+    for fp in fps:
+        filename = fp.split('/')[-1]
+
         if filename.startswith(f_evidence):
                         
             print "Processing: %s" % (filename)
-            fh = open(filename)
-        
+            fh = urllib2.urlopen(fp) 
+            
             for line in fh: 
                 proteinA, proteinB, score = line.split()
                 edge = "\t".join(sorted([proteinA, proteinB]))
@@ -73,12 +107,14 @@ for key1 in evidenceDictionary:
 geneMANIAOutput = open((sys.argv[1])[:-4] + "_GeneMANIAFeatures_combinedEvidence.txt", "w")
                    
 for edge in proteinsPairDictionary:
-    geneMANIAOutput.write(edge)
     
-    for i in range (0,len(proteinsPairDictionary[edge])):
-        geneMANIAOutput.write("\t")
-        geneMANIAOutput.write(str('%.5f' % proteinsPairDictionary[edge][i]))
+    if sum(proteinsPairDictionary[edge]) > 0:
+        geneMANIAOutput.write(edge)
+            
+        for i in range (0,len(proteinsPairDictionary[edge])):
+            geneMANIAOutput.write("\t")
+            geneMANIAOutput.write(str('%.5f' % proteinsPairDictionary[edge][i]))
     
-    geneMANIAOutput.write("\n")
+        geneMANIAOutput.write("\n")
         
 geneMANIAOutput.close()
