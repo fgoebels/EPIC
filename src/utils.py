@@ -6,6 +6,60 @@ import copy
 import numpy as np
 import sys
 import os
+from matplotlib import pyplot as plt
+from matplotlib_venn import venn3
+
+
+def mapPPI(ppiF, mappingF, outF, foundprots=""):
+	def readMapping(mappingF):
+		mappingFH = open(mappingF)
+		out = {}
+		todel = set([])
+		mappingFH.readline()
+		for line in mappingFH:
+			line = line.rstrip()
+			linesplit = line.split("\t")
+			if len(linesplit) <= 1 : continue
+			ida, idbs = line.rstrip().split("\t")
+			if foundprots != "" and ida not in foundprots: continue
+			idbs = idbs.split(";")
+			for idb in idbs:
+				if idb=="":continue
+				if idb not in out:
+					out[idb] = ida
+				else:
+					todel.add(idb)
+
+
+		for id in todel:
+			del out[id]
+
+		return out
+
+	if mappingF !="NA":
+		mapping = readMapping(mappingF)
+	else:
+		mapping = foundprots
+
+	outFH = open(outF, "w")
+	ppiFH = open(ppiF)
+	for line in ppiFH:
+		line = line.rstrip()
+		linesplit = line.split("\t")
+		ida, idb = linesplit[0:2]
+		if ida == idb: continue
+		if mapping!="" and (ida not in mapping or idb not in mapping): continue
+		edge = "\t".join(sorted([ida, idb]))
+		if  mappingF !="NA":
+			ida_mapped = mapping[ida]
+			idb_mapped = mapping[idb]
+			edge =  "\t".join(sorted([ida_mapped, idb_mapped]))
+		print >> outFH, "%s\t%s" % (edge, "\t".join(linesplit[2:]))
+	outFH.close()
+	ppiFH.close()
+
+
+
 
 
 def getOverlapp(complexesA, complexesB):
@@ -61,37 +115,119 @@ def get_cluster_overlapp():
 	print >> outFH, out
 	outFH.close()
 
-def cluster_overlapp():
+def gs_cluster_overlapp():
 
-	reference_corum = GS.Goldstandard_from_reference_File("/Users/florian/Desktop/Ce_gs.txt", found_prots="")
-	positive_corum = reference_corum.goldstandard_positive
-	negative_corum = reference_corum.goldstandard_negative
 
-	reference_go = GS.Goldstandard_from_cluster_File("/Users/florian/workspace/scratch/EPIC_out/clusters/Go_elegans_complex_experiments_mapped.txt", found_prots="")
-	positive_go = reference_go.goldstandard_positive
-	negative_go = reference_go.goldstandard_negative
 
-	combined = positive_corum&positive_go
+	elutionFH = open("/Users/florian/workspace/scratch/EPIC_out/1D_files.txt")
+	elutionProts = set([])
+	for elutionFile in elutionFH:
+		elutionFile = elutionFile.rstrip()
+		elutionData = CS.ElutionData(elutionFile)
+		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
 
-	print "\tCORUM\tGO\tCORUM+GO"
-	print "positive\t%i\t%i\t%i" % (len(positive_corum - combined), len(positive_go - combined), len(positive_corum&positive_go))
-	print "negative\t%i\t%i\t%i" % (len(negative_corum - combined), len(negative_go - combined), len(negative_corum&negative_go))
+
+	target_taxid = "6239"
+
+	corum_complexes = GS.CORUM()
+	corum_prots = set(corum_complexes.get_complexes().getProtToComplexMap().keys())
+	corum_gs = GS.Goldstandard_from_Complexes("CORUM")
+	corum_gs.make_reference_data(corum_complexes, target_taxid, elutionProts)
+
+	intact_complexes = GS.Intact_clusters()
+	intact_prots = set(intact_complexes.get_complexes().getProtToComplexMap().keys())
+	intact_gs = GS.Goldstandard_from_Complexes("Intact")
+	intact_gs.make_reference_data(intact_complexes, target_taxid, elutionProts)
+
+	go_complexes = GS.QuickGO(target_taxid)
+	go_prots = set(go_complexes.get_complexes().getProtToComplexMap().keys())
+	go_gs = GS.Goldstandard_from_Complexes("GO")
+	go_gs.make_reference_data(go_complexes, target_taxid, elutionProts)
+
+
+	corum_p, corum_n = corum_gs.get_goldstandard()
+	intact_p, intact_n = intact_gs.get_goldstandard()
+	go_p, go_n = go_gs.get_goldstandard()
+
+	prot_overlap = [len(go_prots),len(corum_prots),len(go_prots&corum_prots),len(intact_prots),len(go_prots & intact_prots),len(corum_prots&intact_prots),len(go_prots&intact_prots&corum_prots)]
+	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_prots_raw.pdf")
+	plt.close()
+
+
+	go_prots = set(go_gs.get_complexes().getProtToComplexMap().keys())
+	intact_prots = set(intact_gs.get_complexes().getProtToComplexMap().keys())
+	corum_prots =  set(corum_gs.get_complexes().getProtToComplexMap().keys())
+
+	venn3([go_prots, corum_prots, intact_prots], ("GO", "CORUM", "Intact"))
+	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_prots.pdf")
+	plt.close()
+
+	venn3([go_p, corum_p, intact_p] , ("GO", "CORUM", "Intact"))
+	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_p.pdf", bbox_inches="tight")
+	plt.close()
+
+	venn3([go_n, corum_n, intact_n] , ("GO", "CORUM", "Intact"))
+	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_n.pdf", bbox_inches="tight")
+	plt.close()
+
+	outline= "\tGO\tCORUM\tIntAct\n"
+	for compA in [go_gs.get_complexes(), corum_gs.get_complexes(), intact_gs.get_complexes()]:
+		for compB in [go_gs.get_complexes(), corum_gs.get_complexes(), intact_gs.get_complexes()]:
+			outline += "\t" + str(compA.getOverlapp(compB))
+		outline += "\n"
+
+	print outline
 
 	scorecalc = CS.CalculateCoElutionScores()
 	scorecalc.readTable("/Users/florian/workspace/scratch/EPIC_out/All.scores.sel.txt")
 	found_ppis = set(scorecalc.ppiToIndex.keys())
-	positive_go     = found_ppis & positive_go
-	negative_go     = found_ppis & negative_go
-	negative_corum  = found_ppis & negative_corum
-	positive_corum  = found_ppis & positive_corum
-	combined = positive_corum & positive_go
+	go_p = found_ppis & go_p
+	corum_p = found_ppis & corum_p
+	intact_p = found_ppis & intact_p
 
-	print "\tCORUM\tGO\tCORUM+GO"
-	print "positive\t%i\t%i\t%i" % (len(positive_corum - combined), len(positive_go - combined), len(positive_corum&positive_go))
-	print "negative\t%i\t%i\t%i" % (len(negative_corum - combined), len(negative_go - combined), len(negative_corum&negative_go))
+	venn3([go_p, corum_p, intact_p] , ("GO", "CORUM", "Intact"))
+	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_p_val.pdf")
+	plt.close()
+
+
+
+def readPPIs(ppiF):
+	ppiFH = open(ppiF)
+	out = set()
+	for line in ppiFH:
+		out.add(line.rstrip())
+	return out
 
 def main():
-	get_cluster_overlapp()
+
+
+	elutionFH = open("/Users/florian/workspace/scratch/EPIC_out/1D_files.txt")
+	elutionProts = set([])
+	for elutionFile in elutionFH:
+		elutionFile = elutionFile.rstrip()
+		elutionData = CS.ElutionData(elutionFile)
+		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
+
+
+	#get_cluster_overlapp()
+	gs_cluster_overlapp()
+	sys.exit()
+
+#	ppiF, mappingF, outF = sys.argv[1:]
+#	mapPPI(ppiF, mappingF, outF, elutionProts)
+#	sys.exit()
+
+	netA, netB, netC = sys.argv[1:]
+	netA = readPPIs(netA)
+	netB = readPPIs(netB)
+	netC = readPPIs(netC)
+
+	net_overlap = [len(netA), len(netB), len(netA&netB), len(netC), len(netA&netC), len(netB&netC), len(netA&netB&netC)]
+	venn3([netA, netB, netC], ("STRING", "IntAct", "BIOGRID"))
+	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_net.pdf", bbox_inches="tight")
+	plt.close()
+
+
 
 if __name__ == "__main__":
 	try:

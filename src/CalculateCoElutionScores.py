@@ -293,7 +293,7 @@ class Bayes:
 		else:
 			print("Invalid bayes selection")
 			sys.exit()
-			#TODO row error instead of print
+			#TODO throw error instead of print
 
 
 	def clear(self):
