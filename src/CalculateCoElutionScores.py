@@ -24,6 +24,15 @@ import random
 import multiprocessing as mp
 import GoldStandard as GS
 
+# The following imported libraries are for intergrating GeneMANIA data as Functional Evidence
+import glob
+import sys
+from collections import defaultdict
+from bs4 import BeautifulSoup
+import urllib
+import urllib2
+import os 
+
 subfldr = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"TCSS")))
 sys.path.append(subfldr)
 
@@ -516,6 +525,81 @@ class Pearson:
 		global prot2profile
 		prot2profile = {}
 		return True
+	
+# @ author Lucas Ming Hu
+# This is a helper class for getting GeneMANIA functional evidence for a given ElutionData object
+class Genemania:
+	
+	def __init__(taxoID, ppis_to_get_score_from_genemania):
+		self.taxoID = taxoID
+		
+		# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" and "Predicted" to eliminate circularity
+		self.functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Shared']
+	
+	# @auothor Lucas Ming Hu
+	# the catchFile function can help to download files from GeneMANIA website automatically.	
+	def catchFile(self): 
+		taxoIDspeciesDic = {'3702':'Arabidopsis_thaliana', '6239':'Caenorhabditis_elegans', '7955':'Danio_rerio', 
+		                    '7227':'Drosophila_melanogaster','562':'Escherichia_coli','9606':'Homo_sapiens',
+		                    '10090':'Mus_musculus','10116':'Rattus_norvegicus','4932':'Saccharomyces_cerevisiae'} 
+		
+		if self.taxoID not in taxoIDspeciesDic:
+			return nonw
+	
+		urlbase = 'http://genemania.org/data/current'
+		speciesURL = os.path.join(urlbase, taxoIDspeciesDic[self.taxoID])
+		r = urllib.urlopen(speciesURL).read()
+		soup = BeautifulSoup(r)
+    
+		table = soup.find('table')
+    
+		allcell = []
+		for row in table.find_all('tr'):
+			for col in row.find_all('td'):
+				allcell.append(col.getText())
+    
+		#filtering 
+		result = [] 
+		for c in allcell:
+			if '.txt' in c:
+				result.append(os.path.join(speciesURL,c))
+    
+		return result
+
+	# @author: Lucas Ming Hu        
+	# a helper function to get the average of the GeneMANIA scores 
+	# for each line of evidence
+	def average(self, secondaryEvidenceDic):
+		resultDict = defaultdict(float)		
+		for key in secondaryEvidenceDic:
+			resultDict[key] = sum(secondaryEvidenceDic[key]) * 1.0 / len(secondaryEvidenceDic[key])
+		return resultDict
+	
+	
+	# returns Functional anotation scores as a CalculateCoElutionScores Object
+	def to_CalculateCoElutionScores(self):
+		out = CalculateCoElutionScores()
+		
+		# read online database - by species taxoID
+		fps = catchFile(self.taxoID)		
+		
+		for f_evidence in self.functionalEvidences:
+			
+			for fp in fps:
+				fileneme.fp.split('/')[-1]
+				
+				if filename.stratwith(f_evidence):
+					print "Processing: %s" % (filename)
+					fh = urllib2.urlopen(fp)
+					
+					for line in fh:
+						proteinA, proteinB, score = line.split()
+						edge = "\t".join(sorted([proteinA, proteinB]))
+						self.header.extend([proteinA, proteinB])
+						self.scores = self.scores.append(float(score))
+					fh.close()
+
+		return out
 
 # @ author Florian Goebels
 # returns Euclidean distance of two proteins
