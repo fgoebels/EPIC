@@ -56,11 +56,12 @@ class Goldstandard_from_cluster_File():
 		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF, found_prots)
 
 	def readGS(self, gsF, found_prots):
-		clusters = Clusters()
+		clusters = Clusters(need_to_be_mapped=False)
 		clusters.read_file(gsF)
-		clusters.merge_complexes()
-		if found_prots !="": clusters.remove_proteins(found_prots)
 		clusters.filter_complexes()
+		clusters.merge_complexes()
+		clusters.filter_complexes()
+		if found_prots !="": clusters.remove_proteins(found_prots)
 		return clusters.getPositiveAndNegativeInteractions()
 
 
@@ -82,7 +83,7 @@ class Goldstandard_from_Complexes():
 		self.complexes.filter_complexes()
 		print "After mergning %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
-		if self.complexes.need_to_be_mapped == True:
+		if self.complexes.need_to_be_mapped == True and target_taxid != "9606":
 			inparanoid = Inparanoid(target_taxid)
 			inparanoid.mapComplexes(self.complexes)
 			self.complexes.filter_complexes()

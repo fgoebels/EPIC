@@ -127,23 +127,27 @@ def gs_cluster_overlapp():
 		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
 
 
-	target_taxid = "6239"
+	target_taxid = "9606"
 
 	corum_complexes = GS.CORUM()
-	corum_prots = set(corum_complexes.get_complexes().getProtToComplexMap().keys())
 	corum_gs = GS.Goldstandard_from_Complexes("CORUM")
-	corum_gs.make_reference_data(corum_complexes, target_taxid, elutionProts)
+	corum_gs.make_reference_data(corum_complexes, target_taxid, "")
+	outFH = open("/Users/florian/workspace/scratch/EPIC_out/CORUM.txt", "w")
+	print >> outFH, corum_gs.complexes.to_string()
 
 	intact_complexes = GS.Intact_clusters()
-	intact_prots = set(intact_complexes.get_complexes().getProtToComplexMap().keys())
 	intact_gs = GS.Goldstandard_from_Complexes("Intact")
-	intact_gs.make_reference_data(intact_complexes, target_taxid, elutionProts)
+	intact_gs.make_reference_data(intact_complexes, target_taxid, "")
+
+	outFH = open("/Users/florian/workspace/scratch/EPIC_out/Intact.txt", "w")
+	print >> outFH, intact_gs.complexes.to_string()
 
 	go_complexes = GS.QuickGO(target_taxid)
-	go_prots = set(go_complexes.get_complexes().getProtToComplexMap().keys())
 	go_gs = GS.Goldstandard_from_Complexes("GO")
-	go_gs.make_reference_data(go_complexes, target_taxid, elutionProts)
-
+	go_gs.make_reference_data(go_complexes, target_taxid, "")
+	outFH = open("/Users/florian/workspace/scratch/EPIC_out/GO.txt", "w")
+	print >> outFH, go_gs.complexes.to_string()
+	sys.exit()
 
 	corum_p, corum_n = corum_gs.get_goldstandard()
 	intact_p, intact_n = intact_gs.get_goldstandard()
