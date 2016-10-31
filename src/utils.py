@@ -7,7 +7,7 @@ import numpy as np
 import sys
 import os
 from matplotlib import pyplot as plt
-from matplotlib_venn import venn3
+#from matplotlib_venn import venn3
 
 
 def mapPPI(ppiF, mappingF, outF, foundprots=""):
@@ -193,7 +193,12 @@ def gs_cluster_overlapp():
 	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_p_val.pdf")
 	plt.close()
 
-
+def test_geneMania():
+	scorecalc = CS.CalculateCoElutionScores()
+	scorecalc.readTable("/Users/florian/workspace/scratch/EPIC_out/tmp2")
+	ppis =  scorecalc.ppiToIndex.keys()
+	target_species = "6239"
+	genemania = CS.Genemania(target_species)
 
 def readPPIs(ppiF):
 	ppiFH = open(ppiF)
@@ -203,7 +208,8 @@ def readPPIs(ppiF):
 	return out
 
 def main():
-
+	test_geneMania()
+	sys.exit()
 
 	elutionFH = open("/Users/florian/workspace/scratch/EPIC_out/1D_files.txt")
 	elutionProts = set([])
@@ -211,6 +217,7 @@ def main():
 		elutionFile = elutionFile.rstrip()
 		elutionData = CS.ElutionData(elutionFile)
 		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
+
 
 
 	#get_cluster_overlapp()
@@ -230,6 +237,7 @@ def main():
 	venn3([netA, netB, netC], ("STRING", "IntAct", "BIOGRID"))
 	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_net.pdf", bbox_inches="tight")
 	plt.close()
+
 
 
 

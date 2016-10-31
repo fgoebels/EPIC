@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from __future__ import division
 import CalculateCoElutionScores as CS
 import GoldStandard as GS
@@ -13,22 +12,23 @@ def powerset(iterable):
   # note we return an iterator rather than a list
   return chain.from_iterable( combinations(xs,n) for n in range(len(xs)+1) )
 
+
+def get_cols(header, feature_scores):
+	scoreNames = set([])
+	for st in feature_scores: scoreNames.add(st.name)
+	to_keep_header = [0, 1]
+	to_keep_score = []
+	for i in range(2, len(header)):
+		colname = header[i]
+		scorename = colname.split(".")[-1]
+		if scorename in scoreNames:
+			to_keep_header.append(i)
+			to_keep_score.append(i - 2)
+	new_header = list(np.array(header)[to_keep_header])
+	return new_header, to_keep_score
+
 def readTable(feature_scores, scoreF, score_cutoff = 0.5):
 	out = CS.CalculateCoElutionScores()
-	def get_cols(header, feature_scores):
-		scoreNames = set([])
-		for st in feature_scores: scoreNames.add(st.name)
-		to_keep_header = [0,1]
-		to_keep_score = []
-		for i in range(2,len(header)):
-			colname = header[i]
-			scorename = colname.split(".")[-1]
-			if scorename in scoreNames:
-				to_keep_header.append(i)
-				to_keep_score.append(i-2)
-		new_header = list(np.array(header)[to_keep_header])
-		return new_header, to_keep_score
-
 	num_ppis_infile = CS.lineCount(scoreF) - 1
 	with open(scoreF) as scoreFH:
 		header = scoreFH.readline().rstrip().split("\t")
@@ -53,9 +53,30 @@ def readTable(feature_scores, scoreF, score_cutoff = 0.5):
 
 # self.scores = np.reshape(self.scores, (i, len(self.header)-2))
 
+def predictInteractions(All_score_F, train_scoreCalc, scores, useForest = True, num_cores =4, score_cutoff=0.5):
+	out = []
+	All_score_FH = open(All_score_F)
+	header = All_score_FH.readline().rstrip().split("\t")
+	new_header, scores_to_keep = get_cols(header, scores)
+
+	ids_train, data_train, targets_train = train_scoreCalc.toSklearnData(get_preds=False)
+	clf = CS.CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
+
+	for line in All_score_FH:
+		line = line.rstrip()
+		linesplit = line.split("\t")
+		edge = "\t".join(sorted(linesplit[0:2]))
+		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[scores_to_keep], ))).reshape(1, -1)
+		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0:
+			pred_prob = clf.predict_proba(edge_scores)
+			pred_class = clf.predict(edge_scores)
+			if pred_class == 1:
+				out.append("%s\t%f\n" % (edge, pred_prob))
+	All_score_FH.close()
+	return out
 
 def benchmark():
-	feature_combination, use_random_forest, number_of_cores, refF, scoreF, go_complexesF, corum_complexesF, outDir = sys.argv[1:]
+	feature_combination, use_random_forest, number_of_cores, refF, train_scoreF, all_scoreF, go_complexesF, corum_complexesF, outDir = sys.argv[1:]
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(50), CS.Pearson(), CS.Apex()]
 	use_random_forest = use_random_forest == True
 	number_of_cores = int(number_of_cores)
@@ -65,9 +86,9 @@ def benchmark():
 
 	print this_scores
 
-	scorecalc = readTable(this_scores, scoreF)
+	scorecalc_train = readTable(this_scores, train_scoreF)
 
-	print scorecalc.scores.shape
+	print scorecalc_train.scores.shape
 
 	reference = GS.Goldstandard_from_reference_File(refF, found_prots="")
 	positive = reference.goldstandard_positive
@@ -83,26 +104,32 @@ def benchmark():
 	go_clusters = readclusters(go_complexesF)
 	corum_cluster = readclusters(corum_complexesF)
 
-	scorecalc.addLabels(positive, negative)
-	scorecalc.rebalance()
-	print "Done reading in"
+	scorecalc_train.addLabels(positive, negative)
+	scorecalc_train.rebalance()
 
-	outFH = open("%s%s.eval.txt" % (outDir, feature_combination), "w")
-
-	_, data, targets = scorecalc.toSklearnData(get_preds=False)
+	_, data, targets = scorecalc_train.toSklearnData(get_preds=False)
 	num_training_ppi =  data.shape[0]
 	data = np.array(data)
 	clf = CS.CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2, useFeatureSelection=False)
 	eval_scores = clf.getValScores()
 	print "Done doing ML"
-	predF, predicted_ppis = CS.predictInteractions(scorecalc,"%s%s" % (outDir, feature_combination) , use_random_forest, num_cores = number_of_cores)
+	predicted_ppis = predictInteractions(all_scoreF, scorecalc_train, this_scores, useForest = use_random_forest, num_cores = number_of_cores)
+	predF = "%s.pred.txt" % (outDir)
+	predFH = open(predF, "w")
+	predFH.write("\n".join(predicted_ppis))
+	predFH.close()
 	print "Done with prediction"
 	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s%s.clust.txt" % (predF, outDir, feature_combination)
 	os.system(clustering_CMD)
-	pred_clusters = readclusters("%s%s.clust.txt" % (outDir, feature_combination))
+	pred_clusters = GS.Clusters(need_to_be_mapped=False)
+	pred_clusters.read_file("%s.clust.txt" % (outDir))
+	pred_clusters.filter_complexes()
+	pred_clusters.merge_complexes()
+	pred_clusters = pred_clusters.complexes
 	matched_corum_clusters = getOverlapp(pred_clusters, corum_cluster)
 	matched_go_clusters = getOverlapp(pred_clusters, go_clusters)
-	line = "%s\t%i\t%s\t%i\t%i\t%i\t%i" % (feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis, len(pred_clusters) , matched_corum_clusters, matched_go_clusters)
+	line = "%s\t%i\t%s\t%i\t%i\t%i\t%i" % (feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), len(predicted_ppis), len(pred_clusters) , matched_corum_clusters, matched_go_clusters)
+	outFH = open("%s.eval.txt" % (outDir, "w"))
 	print line
 	print >> outFH, line
 	outFH.close()

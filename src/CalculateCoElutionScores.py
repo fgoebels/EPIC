@@ -44,8 +44,8 @@ sys.path.append(subfldr)
 
 # Load script for calculating Bayes correlation globally
 r=robjects.r
-#r.source("/Users/florian/workspace/EPIC/src/Bayes_Corr.R")
-r.source("src/Bayes_Corr.R")
+r.source("/Users/florian/workspace/EPIC/src/Bayes_Corr.R")
+#r.source("Bayes_Corr.R")
 
 cor1 = robjects.r["Bayes_Corr_Prior1"]
 cor2 = robjects.r["Bayes_Corr_Prior2"]
@@ -530,12 +530,17 @@ class Pearson:
 # This is a helper class for getting GeneMANIA functional evidence for a given ElutionData object
 class Genemania:
 	
-	def __init__(taxoID, ppis_to_get_score_from_genemania):
-		self.taxoID = taxoID
-		
+	def __init__(self, taxID):
+		self.taxoID = taxID
+		# Get all Genemania files
+		self.catchFile()
 		# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" and "Predicted" to eliminate circularity
 		self.functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Shared']
-	
+		# loads all of Worm Gene
+		self.load_genemania()
+
+#	def get_score(self, ppi):
+
 	# @auothor Lucas Ming Hu
 	# the catchFile function can help to download files from GeneMANIA website automatically.	
 	def catchFile(self): 
@@ -544,7 +549,7 @@ class Genemania:
 		                    '10090':'Mus_musculus','10116':'Rattus_norvegicus','4932':'Saccharomyces_cerevisiae'} 
 		
 		if self.taxoID not in taxoIDspeciesDic:
-			return nonw
+			return None #TODO throw illegal argument exception
 	
 		urlbase = 'http://genemania.org/data/current'
 		speciesURL = os.path.join(urlbase, taxoIDspeciesDic[self.taxoID])
@@ -559,12 +564,10 @@ class Genemania:
 				allcell.append(col.getText())
     
 		#filtering 
-		result = [] 
+		self.files = []
 		for c in allcell:
 			if '.txt' in c:
-				result.append(os.path.join(speciesURL,c))
-    
-		return result
+				self.files.append(os.path.join(speciesURL,c))
 
 	# @author: Lucas Ming Hu        
 	# a helper function to get the average of the GeneMANIA scores 
@@ -577,29 +580,35 @@ class Genemania:
 	
 	
 	# returns Functional anotation scores as a CalculateCoElutionScores Object
-	def to_CalculateCoElutionScores(self):
-		out = CalculateCoElutionScores()
-		
+	def load_genemania(self):
+		self.scores = {}
+		self.header = []
 		# read online database - by species taxoID
-		fps = catchFile(self.taxoID)		
-		
-		for f_evidence in self.functionalEvidences:
-			
-			for fp in fps:
-				fileneme.fp.split('/')[-1]
-				
-				if filename.stratwith(f_evidence):
+
+		for i, f_evidence in enumerate(self.functionalEvidences):
+			this_evidence_scores = {}
+			self.header.append("GeneMania_%s" % f_evidence)
+			for fp in self.files:
+				filename = str(fp.split('/')[-1])
+				if filename.startswith(f_evidence):
 					print "Processing: %s" % (filename)
 					fh = urllib2.urlopen(fp)
-					
+					fh.readline()
 					for line in fh:
 						proteinA, proteinB, score = line.split()
 						edge = "\t".join(sorted([proteinA, proteinB]))
-						self.header.extend([proteinA, proteinB])
-						self.scores = self.scores.append(float(score))
+						score = float(score)
+						if edge not in this_evidence_scores: this_evidence_scores[edge] = np.array([0, 0])
+						this_evidence_scores[edge][0] += score
+						this_evidence_scores[edge][1] += 1
 					fh.close()
 
-		return out
+		for edge in this_evidence_scores:
+			score, counts = this_evidence_scores[edge]
+			avg_score = score/counts
+			if edge not in self.scores: self.scores[edge] = [0]*len(self.functionalEvidences)
+			self.scores[edge][i] = avg_score
+
 
 # @ author Florian Goebels
 # returns Euclidean distance of two proteins

@@ -62,6 +62,7 @@ class Goldstandard_from_cluster_File():
 		clusters.merge_complexes()
 		clusters.filter_complexes()
 		if found_prots !="": clusters.remove_proteins(found_prots)
+		self.clusters = clusters
 		return clusters.getPositiveAndNegativeInteractions()
 
 
