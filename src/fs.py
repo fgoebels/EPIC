@@ -71,12 +71,13 @@ def predictInteractions(All_score_F, train_scoreCalc, scores, useForest = True, 
 			pred_prob = clf.predict_proba(edge_scores)
 			pred_class = clf.predict(edge_scores)
 			if pred_class == 1:
-				out.append("%s\t%f\n" % (edge, pred_prob))
+				out.append("%s\t%f" % (edge, pred_prob))
 	All_score_FH.close()
 	return out
 
 def benchmark():
 	feature_combination, use_random_forest, number_of_cores, refF, train_scoreF, all_scoreF, go_complexesF, corum_complexesF, outDir = sys.argv[1:]
+	if feature_combination == "00000000": sys.exit()
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(50), CS.Pearson(), CS.Apex()]
 	use_random_forest = use_random_forest == True
 	number_of_cores = int(number_of_cores)
@@ -113,23 +114,27 @@ def benchmark():
 	clf = CS.CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2, useFeatureSelection=False)
 	eval_scores = clf.getValScores()
 	print "Done doing ML"
-	predicted_ppis = predictInteractions(all_scoreF, scorecalc_train, this_scores, useForest = use_random_forest, num_cores = number_of_cores)
+#	predicted_ppis = predictInteractions(all_scoreF, scorecalc_train, this_scores, useForest = use_random_forest, num_cores = number_of_cores)
 	predF = "%s.pred.txt" % (outDir)
-	predFH = open(predF, "w")
-	predFH.write("\n".join(predicted_ppis))
-	predFH.close()
+#	predFH = open(predF, "w")
+#	predFH.write("\n".join(predicted_ppis))
+#	predFH.close()
+	predicted_ppis = CS.lineCount(predF)
 	print "Done with prediction"
-	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s%s.clust.txt" % (predF, outDir, feature_combination)
+	clustering_CMD = "java -jar /Users/florian/workspace/EPIC/src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	os.system(clustering_CMD)
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
 	pred_clusters.read_file("%s.clust.txt" % (outDir))
 	pred_clusters.filter_complexes()
-	pred_clusters.merge_complexes()
+#	pred_clusters.merge_complexes()
+#	pred_clusters.filter_complexes()
 	pred_clusters = pred_clusters.complexes
-	matched_corum_clusters = getOverlapp(pred_clusters, corum_cluster)
-	matched_go_clusters = getOverlapp(pred_clusters, go_clusters)
-	line = "%s\t%i\t%s\t%i\t%i\t%i\t%i" % (feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), len(predicted_ppis), len(pred_clusters) , matched_corum_clusters, matched_go_clusters)
-	outFH = open("%s.eval.txt" % (outDir, "w"))
+	matched_corum_clusters_p = getOverlapp(pred_clusters, corum_cluster)
+	matched_corum_clusters_r = getOverlapp(corum_cluster, pred_clusters)
+	matched_go_clusters_p = getOverlapp(pred_clusters, go_clusters)
+	matched_go_clusters_r = getOverlapp(go_clusters, pred_clusters)
+	line = "%s\t%i\t%s\t%i\t%i\t%i\t%i\t%i\t%i" % ("\t".join(list(feature_combination)), num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis, len(pred_clusters) , matched_corum_clusters_p, matched_corum_clusters_r, matched_go_clusters_p, matched_go_clusters_r)
+	outFH = open("%s.eval.txt" % (outDir), "w")
 	print line
 	print >> outFH, line
 	outFH.close()
