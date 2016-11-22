@@ -33,19 +33,14 @@ import urllib
 import urllib2
 import os 
 
-subfldr = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"TCSS")))
-sys.path.append(subfldr)
-
-#from main import load_semantic_similarity, calculate_semantic_similarity
-
 
 # GLobal static objects used across the files
 # Load R packages globally in order to avoid loading each package again in each thread
 
 # Load script for calculating Bayes correlation globally
 r=robjects.r
-r.source(os.path.realpath('__file__').rsplit(os.sep,1)[0] + os.sep + "Bayes_Corr.R")
-#r.source("Bayes_Corr.R")
+print os.path.realpath(__file__)
+r.source(os.path.realpath(__file__).rsplit(os.sep,1)[0] + os.sep + "Bayes_Corr.R")
 
 cor1 = robjects.r["Bayes_Corr_Prior1"]
 cor2 = robjects.r["Bayes_Corr_Prior2"]
@@ -649,16 +644,15 @@ class CalculateCoElutionScores():
 		self.IndexToPpi = {}
 
 	def addLabels(self, positive, negative):
-		self.positive = set([])
-		self.negative = set([])
+		self.positive = positive
+		self.negative = negative
 
-		for ppi in positive:
-			if ppi in self.ppiToIndex: self.positive.add(ppi)
+#		for ppi in positive:
+#			if ppi in self.ppiToIndex: self.positive.add(ppi)
 
-		for ppi in negative:
-			if ppi in self.ppiToIndex: self.negative.add(ppi)
-		print len(positive)
-		print len(negative)
+#		for ppi in negative:
+#			if ppi in self.ppiToIndex: self.negative.add(ppi)
+
 
 	# @author: Florian Goebels
 	# this method combines who CalculateCoElutionScores objects unto one by comping the toMerge object into the self object
@@ -784,21 +778,25 @@ class CalculateCoElutionScores():
 	# @Param:	
 	#		scoreTypes	a list of co elutoin score objects
 	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
-	def calculateScores(self, toPred, elutionDatas, scores, outFile, num_cores):
+	def calculateScores(self, toPred, elutionDatas, scores, outFile, num_cores, verbose = True):
 		task_queue = mp.JoinableQueue()
 		out_queue = mp.Queue()
 		self.scores = []
 		self.ppiToIndex = {}
+		gs = self.positive | self.negative
+		print len(gs)
 		num_features = len(scores)*len(elutionDatas)
+		self.scores = np.zeros((len(gs), num_features))
 		for i in range(num_cores):  # remove one core since listener is a sapareted process
 			mp.Process(target=getScore, args=(task_queue, out_queue)).start()
 		outFH = open(outFile, "w")
 		print >> outFH, "\t".join(self.header)
 		k = 0
+		ppi_index = 0
 		for ppi in toPred:
 			k += 1
-			if k % 10000 == 0:
-				print(k)
+			if k % 100000 == 0:
+				if verbose: print(k)
 			i = 0
 			for _ in elutionDatas:
 				for score in scores:
@@ -811,9 +809,17 @@ class CalculateCoElutionScores():
 			for _ in range(num_features):
 				score_index, score = out_queue.get()
 				ppi_scores[score_index] = score
-
-			print >> outFH, "%s\t%s" % (ppi, "\t".join(map(str, ppi_scores)))
+			ppi_scores = np.nan_to_num(np.array(ppi_scores))
+			if len(list(set(np.where(ppi_scores > 0.5)[0]))) > 0:
+				print >> outFH, "%s\t%s" % (ppi, "\t".join(map(str, ppi_scores)))
+				if ppi in gs:
+					self.ppiToIndex[ppi] = ppi_index
+					self.IndexToPpi[ppi_index] = ppi
+					self.scores[ppi_index,:] = ppi_scores
+					ppi_index += 1
 		print("done calcualting co-elution scores")
+		print ppi_index
+		self.scores = self.scores[0:ppi_index,:]
 		for i in range(num_cores):
 			task_queue.put('STOP')
 		outFH.close()
@@ -833,13 +839,13 @@ class CalculateCoElutionScores():
 		print("Num of PPIs across all data stes after filtering %i" % (len(allfilteredPPIs)))
 		return allfilteredPPIs
 
-	def calculate_coelutionDatas(self, elutionDatas, scores, outDir, toPred=""):
+	def calculate_coelutionDatas(self, elutionDatas, scores, outDir, num_cores, toPred=""):
 		if toPred == "":
 			toPred = self.getAllPairs_coelutionDatas(elutionDatas)
 		for eD in elutionDatas:
 			for score in scores:
 				self.header.append("%s.%s" % (eD.name, score.name))
-		self.calculateScores(toPred, elutionDatas, scores, outDir + ".scores.txt")
+		self.calculateScores(toPred, elutionDatas, scores, outDir + ".scores.txt", num_cores)
 
 	# @author: Florian Goebels
 	# prints table
@@ -1021,42 +1027,129 @@ def plotCurves(curves, outF, xlab, ylab):
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
 # @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest, num_cores):
+def predictInteractions(scoreCalc, outDir, useForest, num_cores, verbose= False):
+	All_score_FH = open(outDir + ".scores.txt")
+
+
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
-	print(data_train.shape)
-	ids_pred, data_pred, targets_pred = scoreCalc.toSklearnData()
-
-	print(data_pred.shape)
 	clf = CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
-	pred_prob = clf.predict_proba(data_pred)
-	pred_class = clf.predict(data_pred)
+	print len(ids_train)
+	print data_train.shape
+	def getPredictions(scores, clf):
+		out = []
+		pred_prob = clf.predict_proba(scores)
+		pred_class = clf.predict(scores)
+		for i, prediction in enumerate(pred_class):
+			if prediction == 1:
+				out.append("%s\t%f" % (edge, pred_prob[i]))
+		return out
+	out = []
+	tmpscores = np.zeros((100001, data_train.shape[1]))
+	All_score_FH.readline()
+	k = 0
+	for line in All_score_FH:
+		k += 1
+		if k % 100000==0:
+			out.extend(getPredictions(tmpscores, clf))
+			k = 0
+		line = line.rstrip()
+		linesplit = line.split("\t")
+		edge = "\t".join(sorted(linesplit[0:2]))
+		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
+		tmpscores[k,:] = edge_scores
+	out.extend(getPredictions(tmpscores, clf))
+	All_score_FH.close()
 
-	predicted_ppis = 0
 	outFH = open(outDir + ".pred.txt", "w")
-	for i in range(len(ids_pred)):
-		if pred_class [i] == 1:
-			outFH.write("%s\t%f\n" % (ids_pred[i], pred_prob[i]))
-			predicted_ppis += 1
-
-	pred_prob = clf.predict_proba(data_train)
-	pred_class = clf.predict(data_train)
-	for i in range(len(ids_train)):
-		if pred_class [i] == 1:
-			outFH.write("%s\t%f\n" % (ids_pred[i], pred_prob[i]))
-			predicted_ppis += 1
-
+	outFH.write("\n".join(out))
 	outFH.close()
-	return outDir + ".pred.txt", predicted_ppis
+	return outDir + ".pred.txt", len(out)
+
+
+def load_data(data_dir, scores):
+	paths = [os.path.join(data_dir,fn) for fn in next(os.walk(data_dir))[2]]
+	elutionDatas = []
+	elutionProts = set([])
+	for elutionFile in paths:
+		if elutionFile.rsplit(os.sep, 1)[-1].startswith("."): continue
+		elutionFile = elutionFile.rstrip()
+		elutionData = ElutionData(elutionFile)
+		elutionDatas.append(elutionData)
+		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
+		for score in scores:
+			score.init(elutionData)
+	return elutionProts, elutionDatas
+
+def create_goldstandard(target_taxid, valprots):
+	def create_gs_set(cluster_obj, target_taxid, name, valprots):
+		gs =  GS.Goldstandard_from_Complexes(name)
+		gs.make_reference_data(cluster_obj, target_taxid, found_prots=valprots)
+		return gs
+
+	# Create gold standard from CORUM
+	corum_gs = create_gs_set(GS.CORUM(), target_taxid, "CORUM", valprots)
+
+	# Create gold standard from GO
+	go_gs = create_gs_set(GS.QuickGO(target_taxid), target_taxid, "GO", valprots)
+
+	#Create gold stnadard from Intact
+	intact_gs = create_gs_set(GS.Intact_clusters(), target_taxid, "Intact", valprots)
+
+	corum_p, corum_n = corum_gs.get_goldstandard()
+	intact_p, intact_n = intact_gs.get_goldstandard()
+	go_p, go_n = go_gs.get_goldstandard()
+
+	all_p = corum_p | intact_p | go_p
+	all_n = corum_n | intact_n | go_n
+
+	training_p = corum_p | intact_p - go_p
+	training_n = corum_n | intact_n - go_n
+
+	go_complexes = go_gs.complexes
+	corum_complexes = corum_gs.complexes
+
+	return training_p, training_n, all_p, all_n, go_complexes, corum_complexes
 
 
 
+def calculate_features():
+	return None
 
-def get_eval(scoreCalc, useForest=False, folds=10):
+def make_classification():
+	return None
+
+def main():
+	out_dir = "/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test"
+	selection = [True, False, True, False, False, False, False, False ]
+	use_rf = True
+	input_dir = "/Users/florian/workspace/scratch/EPIC_out/test_input_dir"
+	num_cores = 4
+	target_taxid = "6239"
+	all_scores = [Pearson(), Jaccard(), Apex(), MutualInformation(2), Euclidiean(), Wcc(), Bayes(3), Poisson(5)]
+	this_scores = []
+	for i, selection in enumerate(selection):
+		if selection: this_scores.append(all_scores[i])
+	foundprots, elution_datas = load_data(input_dir, this_scores)
+
+	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = create_goldstandard(target_taxid, foundprots)
+	scoreCalc = CalculateCoElutionScores()
+	scoreCalc.readTable("/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test.scores.txt")
+	scoreCalc.addLabels(all_p, all_n)
+	#scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, out_dir, num_cores)
+
+
+	scoreCalc.addLabels(training_p, training_n)
+
+	print "doing benchmark"
+#	bench_scores(scoreCalc, out_dir, num_cores, useForest=use_rf)
+	scoreCalc.addLabels(all_p, all_n)
+	print "doing prediction"
+	predictInteractions(scoreCalc, out_dir, use_rf, num_cores)
+
+def get_eval(scoreCalc, num_coresm, useForest=False, folds=10):
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
 	data = np.array(data)
-	print(data.shape)
-	print(targets)
-	clf = CLF_Wrapper(data, targets, forest=useForest, folds=folds)
+	clf = CLF_Wrapper(data, targets, num_cores, forest=useForest, folds=folds)
 	eval_scores = clf.getValScores()
 	p, r, tr = clf.getPRcurve()
 	pr_curve = tuple([r,p, tr])
@@ -1064,24 +1157,24 @@ def get_eval(scoreCalc, useForest=False, folds=10):
 	roc_curve = tuple([fpr, tpr, tr])
 	return tuple([eval_scores, pr_curve, roc_curve])
 
-def bench_scores(scoreCalc, outDir, useForest=False, folds=10):
+def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=10):
 	pr_curves = []
 	roc_curves = []
 	eval_scores = []
 	cutoff_curves = []
 	method = "svm"
 	if useForest: method= "rf"
-	es, pr, roc = get_eval(scoreCalc, useForest, folds)
+	es, pr, roc = get_eval(scoreCalc, useForest, num_cores, folds)
 	pr_curves.append(("Combined", pr))
 	roc_curves.append(("Coxmbined", roc))
 	eval_scores.append(("Combined", es))
-	plotCurves(pr_curves, outDir + ".%s.pr.pdf" % method, "Recall", "Precision")
-	plotCurves(roc_curves, outDir + ".%s.roc.pdf" % method, "False Positive rate", "True Positive Rate")
+	plotCurves(pr_curves, outDir + ".%s.pr.png" % method, "Recall", "Precision")
+	plotCurves(roc_curves, outDir + ".%s.roc.png" % method, "False Positive rate", "True Positive Rate")
 	recall, precision, threshold = pr
 	threshold = np.append(threshold, 1)
 	cutoff_curves.append(("Precision", (precision, threshold)))
 	cutoff_curves.append(("Recall", (recall, threshold)))
-	plotCurves(cutoff_curves, outDir + ".%s.cutoff.pdf" % method, "Cutoff", "Evaluation metric score")
+	plotCurves(cutoff_curves, outDir + ".%s.cutoff.png" % method, "Cutoff", "Evaluation metric score")
 
 	tableFH = open(outDir + ".%s.eval.txt" % method, "w")
 	tableFH.write("Name\tPrecision\tRecall\tF-measure\tau_PR\tau_ROC\n")
@@ -1089,61 +1182,6 @@ def bench_scores(scoreCalc, outDir, useForest=False, folds=10):
 		tableFH.write("%s\t%s\n" % (score_name, "\t".join(map(str, evals))))
 	tableFH.close()
 
-# @author Florian Goebels
-def main():
-	refF, useForest, elutionFiles, matIter, outDir = sys.argv[1:]
-	useForest = useForest == "True"
-	matIter = int(matIter)
-	scores = [MutualInformation(2), Bayes(3), Euclidiean(), Wcc(), Jaccard(), Poisson(50), Pearson()]
-#	scores = [ Wcc(), Jaccard(), Euclidiean(), Bayes(3), MutualInformation(2)]
-#	scores = [Poisson(50), Wcc()]
-
-	elutionFH = open(elutionFiles)
-	elutionDatas = []
-	elutionProts = set([])
-	for elutionFile in elutionFH:
-		elutionFile = elutionFile.rstrip()
-		elutionData = ElutionData(elutionFile)
-		elutionDatas.append(elutionData)
-		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
-#		for score in scores:
-#			score.init(elutionData)
-
-	numFeatures = len(elutionDatas) * len(scores)
-#	Calcualte reference scores
-#	reference = GS.Goldstandard_from_reference_File(refF, found_prots=elutionProts)
-#	positive = reference.goldstandard_positive
-#	negative = reference.goldstandard_negative
-
-#	reference_from_human = GS.Goldstandard_from_CORUM("10090", found_prots=elutionProts) # Human: 9606, Worm: 6239,
-#	reference_from_mouse = GS.Goldstandard_from_CORUM("10090", found_prots=elutionProts, source_species_regex = "Mouse") # Human: 9606, Worm: 6239,
-#	positive =  reference_from_human.goldstandard_positive | reference_from_mouse.goldstandard_positive
-#	negative = reference_from_human.goldstandard_negative | reference_from_mouse.goldstandard_negative
-
-#	scoreCalc = CalculateCoElutionScores()
-#	scoreCalc.calculate_coelutionDatas(elutionDatas, scores, outDir, reference.goldstandard_positive|reference.goldstandard_negative)
-
-	global prot2profile
-	del prot2profile
-	scoreCalc = CalculateCoElutionScores()
-	scoreCalc.readTable(outDir + ".scores.sel.txt", 0.5)
-
-	reference = GS.GS_from_PPIs(refF, found_ppis=set(scoreCalc.ppiToIndex.keys()))
-	positive = reference.goldstandard_positive
-	negative = reference.goldstandard_negative
-
-
-	scoreCalc.addLabels(positive, negative)
-
-
-	scoreCalc.rebalance()
-#	print "Done"
-	print(len(scoreCalc.positive))
-	print(len(scoreCalc.negative))
-
-	bench_scores(scoreCalc, outDir, useForest)
-	sys.exit()
-	predF, predicted_ppis = predictInteractions(scoreCalc, outDir, useForest)
 
 
 if __name__ == "__main__":

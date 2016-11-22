@@ -76,7 +76,7 @@ def predictInteractions(All_score_F, train_scoreCalc, scores, useForest = True, 
 	return out
 
 def benchmark():
-	feature_combination, use_random_forest, number_of_cores, refF, train_scoreF, all_scoreF, go_complexesF, corum_complexesF, outDir = sys.argv[1:]
+	feature_combination, use_random_forest, number_of_cores, elutionFiles, refF, train_scoreF, all_scoreF, go_complexesF, corum_complexesF, outDir = sys.argv[1:]
 	if feature_combination == "00000000": sys.exit()
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(50), CS.Pearson(), CS.Apex()]
 	use_random_forest = use_random_forest == True
@@ -87,13 +87,25 @@ def benchmark():
 
 	print this_scores
 
+	elutionFH = open(elutionFiles)
+	elutionDatas = []
+	elutionProts = set([])
+	for elutionFile in elutionFH:
+		elutionFile = elutionFile.rstrip()
+		elutionData = CS.ElutionData(elutionFile)
+		elutionDatas.append(elutionData)
+		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
+
 	scorecalc_train = readTable(this_scores, train_scoreF)
+
 
 	print scorecalc_train.scores.shape
 
 	reference = GS.Goldstandard_from_reference_File(refF, found_prots="")
 	positive = reference.goldstandard_positive
 	negative = reference.goldstandard_negative
+
+
 
 	reference_go = GS.Goldstandard_from_cluster_File(go_complexesF, found_prots="")
 	positive_go = reference_go.goldstandard_positive
@@ -102,8 +114,13 @@ def benchmark():
 	positive = positive - positive_go
 	negative = negative - negative_go
 
-	go_clusters = readclusters(go_complexesF)
-	corum_cluster = readclusters(corum_complexesF)
+	go_cluster = GS.Goldstandard_from_cluster_File(go_complexesF, found_prots=elutionProts)
+	go_cluster = go_cluster.clusters
+	print len(go_cluster.complexes)
+
+	corum_cluster = GS.Goldstandard_from_cluster_File(corum_complexesF, found_prots=elutionProts)
+	corum_cluster = corum_cluster.clusters
+	print len(corum_cluster.complexes)
 
 	scorecalc_train.addLabels(positive, negative)
 	scorecalc_train.rebalance()
@@ -126,19 +143,24 @@ def benchmark():
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
 	pred_clusters.read_file("%s.clust.txt" % (outDir))
 	pred_clusters.filter_complexes()
-#	pred_clusters.merge_complexes()
-#	pred_clusters.filter_complexes()
-	pred_clusters = pred_clusters.complexes
-	matched_corum_clusters_p = getOverlapp(pred_clusters, corum_cluster)
-	matched_corum_clusters_r = getOverlapp(corum_cluster, pred_clusters)
-	matched_go_clusters_p = getOverlapp(pred_clusters, go_clusters)
-	matched_go_clusters_r = getOverlapp(go_clusters, pred_clusters)
-	line = "%s\t%i\t%s\t%i\t%i\t%i\t%i\t%i\t%i" % ("\t".join(list(feature_combination)), num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis, len(pred_clusters) , matched_corum_clusters_p, matched_corum_clusters_r, matched_go_clusters_p, matched_go_clusters_r)
+	pred_clusters = pred_clusters
+	corum_scores = "\t".join(map(str, pred_clusters.clus_eval(corum_cluster)))
+	go_scores = "\t".join(map(str, pred_clusters.clus_eval(go_cluster)))
+	line = "%s\t%i\t%s\t%i\t%i\t%s\t%s" % ("\t".join(list(feature_combination)), num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis, len(pred_clusters.complexes) , corum_scores, go_scores)
 	outFH = open("%s.eval.txt" % (outDir), "w")
 	print line
 	print >> outFH, line
 	outFH.close()
 
+def removeClusters(compA, compB):
+	out = {}
+	protsB = set([])
+	for comp in compB:
+		protsB |= compB[comp]
+	for comp in compA:
+		if len(compA[comp] & protsB) >= 2:
+			out[comp] = compA[comp]
+	return out
 
 def getOverlapp(complexesA, complexesB):
 	out = 0

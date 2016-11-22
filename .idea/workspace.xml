@@ -2,10 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="6958c5a6-c9bc-4d23-88a1-17cb0a60b67f" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/.ipynb_checkpoints/Untitled-checkpoint.ipynb" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/Untitled.ipynb" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/src/.ipynb_checkpoints/Untitled-checkpoint.ipynb" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/src/Untitled.ipynb" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/CalculateCoElutionScores.py" afterPath="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/GoldStandard.py" afterPath="$PROJECT_DIR$/src/GoldStandard.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/fs.py" afterPath="$PROJECT_DIR$/src/fs.py" />
     </list>
     <ignored path="EPIC.iws" />
@@ -19,7 +20,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="CoverageDataManager">
-    <SUITE FILE_PATH="coverage/EPIC$fs.coverage" NAME="fs Coverage Results" MODIFIED="1476291481583" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/EPIC$fs.coverage" NAME="fs Coverage Results" MODIFIED="1478891696924" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
   </component>
   <component name="CreatePatchCommitExecutor">
     <option name="PATCH_PATH" value="" />
@@ -30,23 +31,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="CalculateCoElutionScores.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="CalculateCoElutionScores.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="345">
-              <caret line="53" column="0" selection-start-line="53" selection-start-column="0" selection-end-line="53" selection-end-column="0" />
-              <folding>
-                <element signature="e#0#31#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="fs.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/fs.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1920">
-              <caret line="128" column="35" selection-start-line="128" selection-start-column="35" selection-end-line="128" selection-end-column="35" />
+            <state relative-caret-position="114">
+              <caret line="1137" column="87" selection-start-line="1137" selection-start-column="87" selection-end-line="1137" selection-end-column="87" />
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -57,8 +46,8 @@
       <file leaf-file-name="utils.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/utils.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2865">
-              <caret line="198" column="24" selection-start-line="198" selection-start-column="24" selection-end-line="198" selection-end-column="24" />
+            <state relative-caret-position="639">
+              <caret line="179" column="46" selection-start-line="179" selection-start-column="46" selection-end-line="179" selection-end-column="46" />
               <folding>
                 <element signature="e#22#53#0" expanded="true" />
               </folding>
@@ -66,13 +55,26 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="GoldStandard.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="fs.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/fs.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="2355">
+              <caret line="157" column="17" selection-start-line="157" selection-start-column="17" selection-end-line="157" selection-end-column="17" />
+              <folding>
+                <element signature="e#0#31#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="GoldStandard.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="150">
-              <caret line="16" column="32" selection-start-line="16" selection-start-column="32" selection-end-line="16" selection-end-column="32" />
+            <state relative-caret-position="338">
+              <caret line="207" column="8" selection-start-line="207" selection-start-column="8" selection-end-line="207" selection-end-column="8" />
               <folding>
                 <element signature="e#18#49#0" expanded="true" />
+                <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
               </folding>
             </state>
           </provider>
@@ -87,10 +89,10 @@
     <option name="CHANGED_PATHS">
       <list>
         <option value="$PROJECT_DIR$/src/HURI.py" />
-        <option value="$PROJECT_DIR$/src/GoldStandard.py" />
         <option value="$PROJECT_DIR$/src/utils.py" />
-        <option value="$PROJECT_DIR$/src/fs.py" />
         <option value="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
+        <option value="$PROJECT_DIR$/src/fs.py" />
+        <option value="$PROJECT_DIR$/src/GoldStandard.py" />
       </list>
     </option>
   </component>
@@ -101,9 +103,10 @@
     <sorting>DEFINITION_ORDER</sorting>
   </component>
   <component name="ProjectFrameBounds">
+    <option name="x" value="41" />
     <option name="y" value="23" />
-    <option name="width" value="1920" />
-    <option name="height" value="1177" />
+    <option name="width" value="1528" />
+    <option name="height" value="1111" />
   </component>
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
@@ -156,7 +159,7 @@
     <property name="js-jscs-nodeInterpreter" value="/usr/local/bin/node" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
     <property name="settings.editor.splitter.proportion" value="0.2" />
-    <property name="SearchEverywhereHistoryKey" value="&#9;FILE&#9;file:///Users/florian/workspace/EPIC/src/fs.py" />
+    <property name="SearchEverywhereHistoryKey" value="&#9;FILE&#9;file:///Users/florian/workspace/EPIC/src/GoldStandard.py" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -425,7 +428,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="23" width="1920" height="1177" extended-state="6" />
+    <frame x="41" y="23" width="1528" height="1111" extended-state="0" />
     <editor active="true" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.34166667" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
@@ -434,18 +437,18 @@
       <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.2125" sideWeight="0.87184113" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Structure" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.24280104" sideWeight="0.87184113" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.1671875" sideWeight="0.12815884" order="0" side_tool="true" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32942238" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="1.0" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="3" side_tool="false" content_ui="combo" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32942238" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3998195" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
     </layout>
   </component>
   <component name="Vcs.Log.UiProperties">
@@ -466,12 +469,23 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#0#31#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="4530">
           <caret line="312" column="23" selection-start-line="312" selection-start-column="23" selection-end-line="312" selection-end-column="23" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -492,26 +506,7 @@
           <caret line="312" column="23" selection-start-line="312" selection-start-column="23" selection-end-line="312" selection-end-column="23" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#0#31#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4530">
-          <caret line="312" column="23" selection-start-line="312" selection-start-column="23" selection-end-line="312" selection-end-column="23" />
-          <folding>
-            <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -532,6 +527,7 @@
           <caret line="312" column="23" selection-start-line="312" selection-start-column="23" selection-end-line="312" selection-end-column="23" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -552,6 +548,7 @@
           <caret line="30" column="8" selection-start-line="30" selection-start-column="8" selection-end-line="30" selection-end-column="8" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -572,6 +569,7 @@
           <caret line="30" column="8" selection-start-line="30" selection-start-column="8" selection-end-line="30" selection-end-column="8" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -592,6 +590,7 @@
           <caret line="427" column="16" selection-start-line="427" selection-start-column="16" selection-end-line="427" selection-end-column="16" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -612,6 +611,7 @@
           <caret line="149" column="44" selection-start-line="149" selection-start-column="44" selection-end-line="149" selection-end-column="44" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -632,6 +632,7 @@
           <caret line="149" column="44" selection-start-line="149" selection-start-column="44" selection-end-line="149" selection-end-column="44" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -652,6 +653,7 @@
           <caret line="30" column="8" selection-start-line="30" selection-start-column="8" selection-end-line="30" selection-end-column="8" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -672,6 +674,7 @@
           <caret line="30" column="8" selection-start-line="30" selection-start-column="8" selection-end-line="30" selection-end-column="8" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -692,6 +695,7 @@
           <caret line="30" column="8" selection-start-line="30" selection-start-column="8" selection-end-line="30" selection-end-column="8" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -712,6 +716,7 @@
           <caret line="64" column="8" selection-start-line="64" selection-start-column="8" selection-end-line="68" selection-end-column="151" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -732,6 +737,7 @@
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -752,6 +758,7 @@
           <caret line="83" column="44" selection-start-line="83" selection-start-column="44" selection-end-line="83" selection-end-column="44" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -772,6 +779,7 @@
           <caret line="83" column="44" selection-start-line="83" selection-start-column="44" selection-end-line="83" selection-end-column="44" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -792,6 +800,7 @@
           <caret line="83" column="44" selection-start-line="83" selection-start-column="44" selection-end-line="83" selection-end-column="44" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -812,6 +821,7 @@
           <caret line="36" column="74" selection-start-line="36" selection-start-column="74" selection-end-line="36" selection-end-column="74" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -832,6 +842,7 @@
           <caret line="36" column="74" selection-start-line="36" selection-start-column="74" selection-end-line="36" selection-end-column="74" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -852,6 +863,7 @@
           <caret line="36" column="74" selection-start-line="36" selection-start-column="74" selection-end-line="36" selection-end-column="74" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -872,6 +884,7 @@
           <caret line="36" column="74" selection-start-line="36" selection-start-column="74" selection-end-line="36" selection-end-column="74" />
           <folding>
             <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -912,42 +925,50 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
+    <entry file="file://$USER_HOME$/anaconda/envs/py27/lib/python2.7/site-packages/rpy2/robjects/robject.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="150">
-          <caret line="16" column="32" selection-start-line="16" selection-start-column="32" selection-end-line="16" selection-end-column="32" />
+        <state relative-caret-position="606">
+          <caret line="111" column="19" selection-start-line="111" selection-start-column="19" selection-end-line="111" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/fs.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2355">
+          <caret line="157" column="17" selection-start-line="157" selection-start-column="17" selection-end-line="157" selection-end-column="17" />
           <folding>
-            <element signature="e#18#49#0" expanded="true" />
+            <element signature="e#0#31#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/utils.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2865">
-          <caret line="198" column="24" selection-start-line="198" selection-start-column="24" selection-end-line="198" selection-end-column="24" />
+        <state relative-caret-position="639">
+          <caret line="179" column="46" selection-start-line="179" selection-start-column="46" selection-end-line="179" selection-end-column="46" />
           <folding>
             <element signature="e#22#53#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/fs.py">
+    <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1920">
-          <caret line="128" column="35" selection-start-line="128" selection-start-column="35" selection-end-line="128" selection-end-column="35" />
+        <state relative-caret-position="114">
+          <caret line="1137" column="87" selection-start-line="1137" selection-start-column="87" selection-end-line="1137" selection-end-column="87" />
           <folding>
             <element signature="e#0#31#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
+    <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="345">
-          <caret line="53" column="0" selection-start-line="53" selection-start-column="0" selection-end-line="53" selection-end-column="0" />
+        <state relative-caret-position="338">
+          <caret line="207" column="8" selection-start-line="207" selection-start-column="8" selection-end-line="207" selection-end-column="8" />
           <folding>
-            <element signature="e#0#31#0" expanded="true" />
+            <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>

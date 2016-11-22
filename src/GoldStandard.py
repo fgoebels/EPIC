@@ -6,6 +6,9 @@ from xml.dom import minidom
 import os
 import copy
 import re
+import math
+import sys
+
 
 class Goldstandard_from_PPIs():
 	def __init__(self, refF, found_ppis=""):
@@ -53,6 +56,7 @@ class Goldstandard_from_reference_File():
 
 class Goldstandard_from_cluster_File():
 	def __init__(self, gsF, found_prots=""):
+		self.clusters = ""
 		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF, found_prots)
 
 	def readGS(self, gsF, found_prots):
@@ -62,6 +66,8 @@ class Goldstandard_from_cluster_File():
 		clusters.merge_complexes()
 		clusters.filter_complexes()
 		if found_prots !="": clusters.remove_proteins(found_prots)
+		self.clusters = clusters
+		clusters.filter_complexes()
 		self.clusters = clusters
 		return clusters.getPositiveAndNegativeInteractions()
 
@@ -156,13 +162,13 @@ class CORUM():
 	# downloads current version of corum and safe it to wd/data folder as corum.txt
 	def getCORUM(self):
 		self.corum_raw = {}
-		corum_url = "http://mips.helmholtz-muenchen.de/genre/proj/corum/allComplexes.csv"
+		corum_url = "http://mips.helmholtz-muenchen.de/corum/download/allComplexes.txt"
 		corum_url_FH = urllib2.urlopen(corum_url)
 		for line in corum_url_FH:
 			line = line.rstrip()
-			linesplit = np.array(line.split(";"))
+			linesplit = np.array(line.split("\t"))
 			corum_id = linesplit[0]
-			self.corum_raw[corum_id] = linesplit[(3,4,6),]
+			self.corum_raw[corum_id] = linesplit[(2,5,7),]
 
 	# @author Florian Goebels
 	# reads in CORUM from flat file
@@ -174,12 +180,12 @@ class CORUM():
 			if not bool(re.search(self.biochemical_evidences_regex, evidence)):
 				continue
 			if not bool(re.search(self.source_species_regex, species)): continue
-			prots = set(prots.split(","))
+			prots = set(prots.split(";"))
 			self.complexes.addComplex(comp, prots)
 
 class Clusters():
 
-	def __init__(self, need_to_be_mapped, overlap_cutoff = 0.5, lb = 3, ub = 50):
+	def __init__(self, need_to_be_mapped, overlap_cutoff = 0.8, lb = 2, ub = 50):
 		self.complexes = {}
 		self.overlap_cutoff = overlap_cutoff
 		self.ub = ub
@@ -228,19 +234,18 @@ class Clusters():
 					negative.add(edge)
 		return positive, negative
 
+	def overlap(self, a, b):
+		tmpa = set(a)
+		tmpb = set(b)
+		overlap = math.pow((len(tmpa & tmpb)), 2) / (len(tmpa) * len(tmpb))
+		return overlap
+
 	# @author Florian Goebels
 	# merges complexes which have an overlapp score > overlap_cutoff, and continues to merge until there is nothing left to merge
 	def merge_complexes(self):
 		merged = set()
 		allComplexes = self.complexes.keys()
 		newComplexes = {}
-
-		def overlap(a, b):
-			tmpa = set(a)
-			tmpb = set(b)
-			overlap = len(tmpa & tmpb) / min(len(tmpa), len(tmpb))
-			return overlap
-
 
 		for i in range(len(allComplexes)):
 			compI = allComplexes[i]
@@ -252,7 +257,7 @@ class Clusters():
 				for j in range(i + 1, len(allComplexes)):
 					compJ = allComplexes[j]
 					if compJ in merged: continue
-					if overlap(self.complexes[compI], self.complexes[compJ]) > self.overlap_cutoff:
+					if self.overlap(self.complexes[compI], self.complexes[compJ]) > self.overlap_cutoff:
 						toMerge.add(compJ)
 						candidates.append(compJ)
 				merged.add(this_complex)
@@ -292,19 +297,113 @@ class Clusters():
 				out[prot].add(cluster)
 		return out
 
-	def getOverlapp(self, complexesB):
+	def getOverlapp(self, complexesB, cutoff = 0.25):
 		out = 0
 		for comp_ID_A in self.complexes.keys():
 			protsA = self.complexes[comp_ID_A]
 			matched = False
 			for comp_ID_B in complexesB.complexes.keys():
 				protsB = complexesB.complexes[comp_ID_B]
-				if (len(protsA & protsB) / min(len(protsA), len(protsB))) > 0.5:
+				if self.overlap(protsA, protsB) > cutoff:
 					matched = True
 					break
 
 			if matched: out += 1
 		return out
+
+	def mmr(self, reference):
+		matchingscores = {}
+		for ref_complex in reference.complexes:
+			if ref_complex not in matchingscores: matchingscores[ref_complex] = 0
+			for complex in self.complexes:
+				matchingscores[ref_complex] = max(matchingscores[ref_complex], self.overlap(self.complexes[complex],  reference.complexes[ref_complex]))
+
+		mmr = matchingscores.values()
+		mmr = sum(mmr)/len(mmr)
+		return mmr
+
+	def frac_match_comp(self, reference):
+		out_simcoe = set([])
+		out_overlap = set([])
+		out_comb = set([])
+		def simco(a,b):
+			tmpa = set(a)
+			tmpb = set(b)
+			return len(tmpa&tmpb)/(min(len(tmpa), len(tmpb)))
+
+		for complex in self.complexes:
+			for ref_complex in reference.complexes:
+				overlap_score = self.overlap(self.complexes[complex],  reference.complexes[ref_complex])
+				simco_score = simco(self.complexes[complex],  reference.complexes[ref_complex])
+				if overlap_score >= 0.25:
+					out_overlap.add(complex)
+				if simco_score > 0.5:
+					out_simcoe.add(complex)
+				if (simco_score+overlap_score)/2 >= 0.375:
+					out_comb.add(complex)
+
+		out_overlap = len(out_overlap)/len(self.complexes)
+		out_simcoe = len(out_simcoe)/len(self.complexes)
+		out_comb = len(out_comb) / len(self.complexes)
+		return "%f\t%f\t%f" % (out_overlap, out_simcoe, out_comb)
+		return out_simcoe/len(self.complexes)
+
+	def sensitivity(self, reference):
+		max_overlap_per_predicted_clustes = {}
+		sum_of_all_cluster_sizes = 0
+		for predicted_cluster in self.complexes:
+			if predicted_cluster not in max_overlap_per_predicted_clustes: max_overlap_per_predicted_clustes[predicted_cluster] = 0
+			sum_of_all_cluster_sizes += len(self.complexes[predicted_cluster])
+			for reference_cluster in reference.complexes:
+				overlap = len(self.complexes[predicted_cluster] & reference.complexes[reference_cluster])
+				max_overlap_per_predicted_clustes[predicted_cluster] = max( max_overlap_per_predicted_clustes[predicted_cluster], overlap)
+		max_overlap_per_predicted_clustes = sum(max_overlap_per_predicted_clustes.values())
+		return max_overlap_per_predicted_clustes/sum_of_all_cluster_sizes
+
+
+	def ppv(self, reference):
+		n = len(self.complexes)
+		m = len(reference.complexes)
+		overlap_mat = np.zeros((n,m))
+		for n, predicted_cluster in enumerate(self.complexes):
+			for m, reference_cluster in enumerate(reference.complexes):
+				overlap = len(self.complexes[predicted_cluster] & reference.complexes[reference_cluster])
+				overlap_mat[n,m] = overlap
+		return np.sum(overlap_mat.max(axis=0))/np.sum(overlap_mat)
+
+	def acc(self, reference, sn = None, ppv = None):
+		if sn == None: sn = self.sensitivity(reference)
+		if ppv == None: ppv = self.ppv(reference)
+		return math.sqrt(sn*ppv)
+
+	def clus_sep(self, reference):
+		n = len(self.complexes)
+		m = len(reference.complexes)
+		row_F = np.zeros((n, m))
+		col_F = np.zeros((n, m))
+
+		for i, compA in enumerate(self.complexes):
+			for j, compB in enumerate(reference.complexes):
+				overlap = len(self.complexes[compA] & reference.complexes[compB])
+				row_F[i,j] = overlap
+				col_F[i,j] = overlap
+		print np.sum(row_F)
+
+		row_F = np.nan_to_num(row_F/np.sum(row_F, axis=1, keepdims=True))
+		col_F = np.nan_to_num(col_F/np.sum(col_F, axis=0, keepdims=True))
+		sep = np.nan_to_num(np.sum(row_F*col_F))
+		sep_co = sep/m
+		sep_cl = sep/n
+		return math.sqrt(sep_co*sep_cl)
+
+	def clus_eval(self, ref):
+		mmr = self.mmr(ref)
+		ppv = self.ppv(ref)
+		sn = self.sensitivity(ref)
+		acc = self.acc(ref, sn, ppv)
+		sep = self.clus_sep(ref)
+		prc = self.frac_match_comp(ref)
+		return mmr, prc, sn, ppv, acc, sep
 
 
 # @author Florian Goebels
