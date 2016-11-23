@@ -1045,20 +1045,20 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, verbose= False)
 				out.append("%s\t%f" % (edges[i], pred_prob[i]))
 		return out
 	out = []
-	tmpscores = np.zeros((100001, data_train.shape[1]))
-	edges = [""]*100001
+	tmpscores = np.zeros((100000, data_train.shape[1]))
+	edges = [""]*100000
 	All_score_FH.readline()
 	k = 0
 	for line in All_score_FH:
 		if k % 100000==0:
 			out.extend(getPredictions(tmpscores, edges, clf))
-			tmpscores = np.zeros((100001, data_train.shape[1]))
+			tmpscores = np.zeros((100000, data_train.shape[1]))
 			k = 0
 		line = line.rstrip()
 		linesplit = line.split("\t")
 		edge = "\t".join(sorted(linesplit[0:2]))
 		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
-		edges.append(edge)
+		edges[k] = edge
 		tmpscores[k,:] = edge_scores
 		k += 1
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
