@@ -879,23 +879,25 @@ class CalculateCoElutionScores():
 		return counts
 
 	def readTable(self, scoreF):
-		num_ppis_infile = lineCount(scoreF) -1
 		scoreFH = open(scoreF)
 		self.header = scoreFH.readline().rstrip().split("\t")
-		self.scores = np.zeros((num_ppis_infile, len(self.header)-2))
+		gs = self.positive | self.negative
+		self.scores = np.zeros((len(self.positive)+len(self.negative), len(self.header)-2))
 		i = 0
 		self.ppiToIndex = {}
 		for line in scoreFH:
 			line = line.rstrip()
+			print line
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
+			if edge not in gs: continue
 			edge_scores = np.nan_to_num(np.array(map(float, linesplit[2:])))
 			self.scores[i,:] = edge_scores
 			self.IndexToPpi[i] = edge
 			self.ppiToIndex[edge] = i
 			i += 1
 		scoreFH.close()
-		#self.scores = np.reshape(self.scores, (i, len(self.header)-2))
+		self.scores = self.scores[0:i, :]
 
 	# @author: Florian Goebels
 	# return stored co elution scores for a given data set in form that is required for sklearn to learn and predict interaction

@@ -2,11 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="6958c5a6-c9bc-4d23-88a1-17cb0a60b67f" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/src/.ipynb_checkpoints/Untitled-checkpoint.ipynb" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/src/Untitled.ipynb" afterPath="" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/CalculateCoElutionScores.py" afterPath="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/GoldStandard.py" afterPath="$PROJECT_DIR$/src/GoldStandard.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/fs.py" afterPath="$PROJECT_DIR$/src/fs.py" />
     </list>
     <ignored path="EPIC.iws" />
@@ -34,8 +30,8 @@
       <file leaf-file-name="CalculateCoElutionScores.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="114">
-              <caret line="1137" column="87" selection-start-line="1137" selection-start-column="87" selection-end-line="1137" selection-end-column="87" />
+            <state relative-caret-position="581">
+              <caret line="1053" column="20" selection-start-line="1053" selection-start-column="20" selection-end-line="1053" selection-end-column="20" />
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -55,11 +51,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="fs.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="fs.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/fs.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2355">
-              <caret line="157" column="17" selection-start-line="157" selection-start-column="17" selection-end-line="157" selection-end-column="17" />
+            <state relative-caret-position="174">
+              <caret line="79" column="52" selection-start-line="79" selection-start-column="52" selection-end-line="79" selection-end-column="52" />
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -67,11 +63,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="GoldStandard.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="GoldStandard.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="338">
-              <caret line="207" column="8" selection-start-line="207" selection-start-column="8" selection-end-line="207" selection-end-column="8" />
+            <state relative-caret-position="260">
+              <caret line="198" column="8" selection-start-line="198" selection-start-column="8" selection-end-line="198" selection-end-column="8" />
               <folding>
                 <element signature="e#18#49#0" expanded="true" />
                 <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
@@ -90,9 +86,9 @@
       <list>
         <option value="$PROJECT_DIR$/src/HURI.py" />
         <option value="$PROJECT_DIR$/src/utils.py" />
+        <option value="$PROJECT_DIR$/src/GoldStandard.py" />
         <option value="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
         <option value="$PROJECT_DIR$/src/fs.py" />
-        <option value="$PROJECT_DIR$/src/GoldStandard.py" />
       </list>
     </option>
   </component>
@@ -105,8 +101,8 @@
   <component name="ProjectFrameBounds">
     <option name="x" value="41" />
     <option name="y" value="23" />
-    <option name="width" value="1528" />
-    <option name="height" value="1111" />
+    <option name="width" value="1399" />
+    <option name="height" value="877" />
   </component>
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
@@ -428,7 +424,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="41" y="23" width="1528" height="1111" extended-state="0" />
+    <frame x="41" y="23" width="1399" height="877" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.34166667" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
@@ -437,7 +433,7 @@
       <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Structure" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.24280104" sideWeight="0.87184113" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.2651894" sideWeight="0.87184113" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.1671875" sideWeight="0.12815884" order="0" side_tool="true" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
@@ -932,12 +928,13 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/fs.py">
+    <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2355">
-          <caret line="157" column="17" selection-start-line="157" selection-start-column="17" selection-end-line="157" selection-end-column="17" />
+        <state relative-caret-position="260">
+          <caret line="198" column="8" selection-start-line="198" selection-start-column="8" selection-end-line="198" selection-end-column="8" />
           <folding>
-            <element signature="e#0#31#0" expanded="true" />
+            <element signature="e#18#49#0" expanded="true" />
+            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
           </folding>
         </state>
       </provider>
@@ -954,21 +951,20 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="114">
-          <caret line="1137" column="87" selection-start-line="1137" selection-start-column="87" selection-end-line="1137" selection-end-column="87" />
+        <state relative-caret-position="581">
+          <caret line="1053" column="20" selection-start-line="1053" selection-start-column="20" selection-end-line="1053" selection-end-column="20" />
           <folding>
             <element signature="e#0#31#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
+    <entry file="file://$PROJECT_DIR$/src/fs.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="338">
-          <caret line="207" column="8" selection-start-line="207" selection-start-column="8" selection-end-line="207" selection-end-column="8" />
+        <state relative-caret-position="174">
+          <caret line="79" column="52" selection-start-line="79" selection-start-column="52" selection-end-line="79" selection-end-column="52" />
           <folding>
-            <element signature="e#18#49#0" expanded="true" />
-            <marker date="1479841687000" expanded="true" signature="7272:12983" ph="..." />
+            <element signature="e#0#31#0" expanded="true" />
           </folding>
         </state>
       </provider>
