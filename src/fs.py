@@ -89,23 +89,23 @@ def benchmark2():
 	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = CS.create_goldstandard("6239", foundprots)
 	scoreCalc = CS.CalculateCoElutionScores()
 	scoreCalc.addLabels(all_p, all_n)
-#	scoreCalc.readTable(all_scoreF)
-	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
+	scoreCalc.readTable(all_scoreF)
+#	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
 	scoreCalc.addLabels(training_p, training_n)
 
 
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
-	print data.shape()
-	sys.exit()
+	print data.shape
 	num_training_ppi =  data.shape[0]
 	data = np.array(data)
 	clf = CS.CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2, useFeatureSelection=False)
 	eval_scores = clf.getValScores()
+	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores)
 
 	predF = "%s.pred.txt" % (outDir)
 	predicted_ppis = CS.lineCount(predF)
 	print "Done with prediction"
-	clustering_CMD = "java -jar /Users/florian/workspace/EPIC/src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	os.system(clustering_CMD)
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
 	pred_clusters.read_file("%s.clust.txt" % (outDir))

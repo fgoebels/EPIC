@@ -887,7 +887,6 @@ class CalculateCoElutionScores():
 		self.ppiToIndex = {}
 		for line in scoreFH:
 			line = line.rstrip()
-			print line
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
 			if edge not in gs: continue
