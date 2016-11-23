@@ -92,7 +92,7 @@ def benchmark2():
 	scoreCalc.readTable(all_scoreF)
 #	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
 	scoreCalc.addLabels(training_p, training_n)
-
+	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
 
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
 	print data.shape

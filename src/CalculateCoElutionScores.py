@@ -286,7 +286,7 @@ class Bayes:
 		global prot2profile
 		prot2profile[fname] = {}
 		for prot in elutionData.prot2Index:
-			prot2profile[fname][prot] = elutionData.getElution(prot)
+			prot2profile[fname][prot] = map( math.log, elutionData.getElution(prot)+1)
 		global current_bayes_cor, cor1, cor2, cor3
 		if self.bayesType == 1:
 			current_bayes_cor = cor1
@@ -1036,29 +1036,32 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, verbose= False)
 	clf = CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
 	print len(ids_train)
 	print data_train.shape
-	def getPredictions(scores, clf):
+	def getPredictions(scores, edges, clf):
 		out = []
 		pred_prob = clf.predict_proba(scores)
 		pred_class = clf.predict(scores)
 		for i, prediction in enumerate(pred_class):
 			if prediction == 1:
-				out.append("%s\t%f" % (edge, pred_prob[i]))
+				out.append("%s\t%f" % (edges[i], pred_prob[i]))
 		return out
 	out = []
 	tmpscores = np.zeros((100001, data_train.shape[1]))
+	edges = [""]*100001
 	All_score_FH.readline()
 	k = 0
 	for line in All_score_FH:
-		k += 1
 		if k % 100000==0:
-			out.extend(getPredictions(tmpscores, clf))
+			out.extend(getPredictions(tmpscores, edges, clf))
+			tmpscores = np.zeros((100001, data_train.shape[1]))
 			k = 0
 		line = line.rstrip()
 		linesplit = line.split("\t")
 		edge = "\t".join(sorted(linesplit[0:2]))
 		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
+		edges.append(edge)
 		tmpscores[k,:] = edge_scores
-	out.extend(getPredictions(tmpscores, clf))
+		k += 1
+	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	All_score_FH.close()
 
 	outFH = open(outDir + ".pred.txt", "w")
