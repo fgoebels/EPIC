@@ -1134,23 +1134,47 @@ def main():
 	for i, selection in enumerate(selection):
 		if selection: this_scores.append(all_scores[i])
 	foundprots, elution_datas = load_data(input_dir, this_scores)
-
-	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = create_goldstandard(target_taxid, foundprots)
+	evals = create_goldstandard(target_taxid, foundprots)
+	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
 	scoreCalc = CalculateCoElutionScores()
-	scoreCalc.readTable("/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test.scores.txt")
 	scoreCalc.addLabels(all_p, all_n)
+	scoreCalc.readTable("/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test.scores.txt")
 	#scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, out_dir, num_cores)
-
-
 	scoreCalc.addLabels(training_p, training_n)
-
 	print "doing benchmark"
 #	bench_scores(scoreCalc, out_dir, num_cores, useForest=use_rf)
 	scoreCalc.addLabels(all_p, all_n)
 	print "doing prediction"
 	predictInteractions(scoreCalc, out_dir, use_rf, num_cores)
+	clustering_evaluation(evals, scoreCalc, out_dir, ",".join([score.name for score in this_scores]), num_cores, use_rf)
 
-def get_eval(scoreCalc, num_coresm, useForest=False, folds=10):
+def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_of_cores, use_random_forest):
+	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
+	scoreCalc.addLabels(training_p, training_n)
+	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
+	print data.shape
+	num_training_ppi = data.shape[0]
+	data = np.array(data)
+	clf = CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2,
+						 useFeatureSelection=False)
+	eval_scores = clf.getValScores()
+	predF = "%s.pred.txt" % (outDir)
+	predicted_ppis = lineCount(predF)
+	pred_clusters = GS.Clusters(need_to_be_mapped=False)
+	pred_clusters.read_file("%s.clust.txt" % (outDir))
+	pred_clusters.filter_complexes()
+	pred_clusters = pred_clusters
+	corum_scores = "\t".join(map(str, pred_clusters.clus_eval(corum_complexes)))
+	go_scores = "\t".join(map(str, pred_clusters.clus_eval(go_complexes)))
+	line = "%s\t%i\t%s\t%i\t%i\t%s\t%s" % (
+		feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis,
+		len(pred_clusters.complexes), corum_scores, go_scores)
+	outFH = open("%s.eval.txt" % (outDir), "w")
+	print line
+	print >> outFH, line
+
+
+def get_eval(scoreCalc, num_cores, useForest=False, folds=10):
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
 	data = np.array(data)
 	clf = CLF_Wrapper(data, targets, num_cores, forest=useForest, folds=folds)
@@ -1164,28 +1188,17 @@ def get_eval(scoreCalc, num_coresm, useForest=False, folds=10):
 def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=10):
 	pr_curves = []
 	roc_curves = []
-	eval_scores = []
 	cutoff_curves = []
-	method = "svm"
-	if useForest: method= "rf"
 	es, pr, roc = get_eval(scoreCalc, useForest, num_cores, folds)
 	pr_curves.append(("Combined", pr))
 	roc_curves.append(("Coxmbined", roc))
-	eval_scores.append(("Combined", es))
-	plotCurves(pr_curves, outDir + ".%s.pr.png" % method, "Recall", "Precision")
-	plotCurves(roc_curves, outDir + ".%s.roc.png" % method, "False Positive rate", "True Positive Rate")
+	plotCurves(pr_curves, outDir + ".pr.png", "Recall", "Precision")
+	plotCurves(roc_curves, outDir + ".roc.png", "False Positive rate", "True Positive Rate")
 	recall, precision, threshold = pr
 	threshold = np.append(threshold, 1)
 	cutoff_curves.append(("Precision", (precision, threshold)))
 	cutoff_curves.append(("Recall", (recall, threshold)))
-	plotCurves(cutoff_curves, outDir + ".%s.cutoff.png" % method, "Cutoff", "Evaluation metric score")
-
-	tableFH = open(outDir + ".%s.eval.txt" % method, "w")
-	tableFH.write("Name\tPrecision\tRecall\tF-measure\tau_PR\tau_ROC\n")
-	for (score_name, evals) in eval_scores:
-		tableFH.write("%s\t%s\n" % (score_name, "\t".join(map(str, evals))))
-	tableFH.close()
-
+	plotCurves(cutoff_curves, outDir + ".cutoff.png", "Cutoff", "Evaluation metric score")
 
 
 if __name__ == "__main__":
