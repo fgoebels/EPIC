@@ -106,7 +106,6 @@ class ElutionData():
 		self.elutionMat, self.prot2Index  = self.loadElutionData(elutionProfileF)
 		self.normedElutionMat = normalize_fracs(self.elutionMat)
 		self.elutionMat = np.array(self.elutionMat)
-		
 
 	# @author: Florian Goebels
 	# this methods load elution data stored as a flat file and returns the read in matrix and an index pointing each protein to it's rwo index
@@ -1169,9 +1168,13 @@ def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_
 	line = "%s\t%i\t%s\t%i\t%i\t%s\t%s" % (
 		feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis,
 		len(pred_clusters.complexes), corum_scores, go_scores)
+	linesplit = line.split("\t")
+	for i, cat in enumerate(["Features", "PPi in training set", "Precision", "Recall", "F-measure", "auPR", "auROC", "Num predicted PPIs", "Num predicted clusters", "CORUM mmr", "CORUM overlapp", "CORUM simcoe", "CORUM mean_simcoe_overlap", "CORUM sensetivity", "CORUM accuracy", "CORUM sep", "GO mmr", "GO overlapp", "GO simcoe", "GO mean_simcoe_overlap", "GO sensetivity", "GO accuracy", "GO sep"]):
+		print "%s\t\t%s" % (cat, linesplit[i])
+
 	outFH = open("%s.eval.txt" % (outDir), "w")
-	print line
 	print >> outFH, line
+	outFH.close()
 
 
 def get_eval(scoreCalc, num_cores, useForest=False, folds=10):

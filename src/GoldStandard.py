@@ -346,7 +346,6 @@ class Clusters():
 		out_simcoe = len(out_simcoe)/len(self.complexes)
 		out_comb = len(out_comb) / len(self.complexes)
 		return "%f\t%f\t%f" % (out_overlap, out_simcoe, out_comb)
-		return out_simcoe/len(self.complexes)
 
 	def sensitivity(self, reference):
 		max_overlap_per_predicted_clustes = {}

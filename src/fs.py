@@ -86,40 +86,22 @@ def benchmark2():
 	print this_scores
 
 	foundprots, elution_datas = CS.load_data(elutionFiles, this_scores)
-	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = CS.create_goldstandard("6239", foundprots)
+	evals = CS.create_goldstandard("6239", foundprots)
+	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
 	scoreCalc = CS.CalculateCoElutionScores()
 	scoreCalc.addLabels(all_p, all_n)
 	scoreCalc.readTable(all_scoreF)
 #	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
-	scoreCalc.addLabels(training_p, training_n)
-	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
 
-	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
-	print data.shape
-	num_training_ppi =  data.shape[0]
-	data = np.array(data)
-	clf = CS.CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2, useFeatureSelection=False)
-	eval_scores = clf.getValScores()
+	scoreCalc.addLabels(all_p, all_n)
 	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores)
-
 	predF = "%s.pred.txt" % (outDir)
-	predicted_ppis = CS.lineCount(predF)
-	print "Done with prediction"
 	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	os.system(clustering_CMD)
-	pred_clusters = GS.Clusters(need_to_be_mapped=False)
-	pred_clusters.read_file("%s.clust.txt" % (outDir))
-	pred_clusters.filter_complexes()
-	pred_clusters = pred_clusters
-	corum_scores = "\t".join(map(str, pred_clusters.clus_eval(corum_complexes)))
-	go_scores = "\t".join(map(str, pred_clusters.clus_eval(go_complexes)))
-	line = "%s\t%i\t%s\t%i\t%i\t%s\t%s" % (
-	"\t".join(list(feature_combination)), num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis,
-	len(pred_clusters.complexes), corum_scores, go_scores)
-	outFH = open("%s.eval.txt" % (outDir), "w")
-	print line
-	print >> outFH, line
-	outFH.close()
+
+	scoreCalc.addLabels(training_p, training_n)
+	#CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
+	CS.clustering_evaluation(evals, scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
 def benchmark():
 	feature_combination, use_random_forest, number_of_cores, elutionFiles, refF, train_scoreF, all_scoreF, go_complexesF, corum_complexesF, outDir = sys.argv[1:]
