@@ -93,14 +93,14 @@ def benchmark2():
 	scoreCalc.readTable(all_scoreF)
 #	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
 
-	scoreCalc.addLabels(all_p, all_n)
-	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores)
-	predF = "%s.pred.txt" % (outDir)
-	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
-	os.system(clustering_CMD)
+#	scoreCalc.addLabels(all_p, all_n)
+#	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores)
+#	predF = "%s.pred.txt" % (outDir)
+#	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+#	os.system(clustering_CMD)
 
 	scoreCalc.addLabels(training_p, training_n)
-	#CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
+	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
 	CS.clustering_evaluation(evals, scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
 def benchmark():

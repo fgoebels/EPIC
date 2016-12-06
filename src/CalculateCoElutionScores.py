@@ -1141,7 +1141,7 @@ def main():
 	#scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, out_dir, num_cores)
 	scoreCalc.addLabels(training_p, training_n)
 	print "doing benchmark"
-#	bench_scores(scoreCalc, out_dir, num_cores, useForest=use_rf)
+	bench_scores(scoreCalc, out_dir, num_cores, useForest=use_rf)
 	scoreCalc.addLabels(all_p, all_n)
 	print "doing prediction"
 	predictInteractions(scoreCalc, out_dir, use_rf, num_cores)
@@ -1154,7 +1154,7 @@ def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_
 	print data.shape
 	num_training_ppi = data.shape[0]
 	data = np.array(data)
-	clf = CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2,
+	clf = CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=3,
 						 useFeatureSelection=False)
 	eval_scores = clf.getValScores()
 	predF = "%s.pred.txt" % (outDir)
@@ -1177,22 +1177,23 @@ def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_
 	outFH.close()
 
 
-def get_eval(scoreCalc, num_cores, useForest=False, folds=10):
+def get_eval(scoreCalc, num_cores, useForest=False, folds=3):
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
+	print data.shape
 	data = np.array(data)
-	clf = CLF_Wrapper(data, targets, num_cores, forest=useForest, folds=folds)
-	eval_scores = clf.getValScores()
+	clf = CLF_Wrapper(data, targets, num_cores=num_cores, forest=useForest, folds=folds,
+					  useFeatureSelection=False)
 	p, r, tr = clf.getPRcurve()
 	pr_curve = tuple([r,p, tr])
 	fpr, tpr, tr = clf.getROCcurve()
 	roc_curve = tuple([fpr, tpr, tr])
-	return tuple([eval_scores, pr_curve, roc_curve])
+	return tuple([pr_curve, roc_curve])
 
-def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=10):
+def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=3):
 	pr_curves = []
 	roc_curves = []
 	cutoff_curves = []
-	es, pr, roc = get_eval(scoreCalc, useForest, num_cores, folds)
+	pr, roc = get_eval(scoreCalc, num_cores, useForest, folds)
 	pr_curves.append(("Combined", pr))
 	roc_curves.append(("Coxmbined", roc))
 	plotCurves(pr_curves, outDir + ".pr.png", "Recall", "Precision")
