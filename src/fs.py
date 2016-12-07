@@ -78,7 +78,7 @@ def predictInteractions(All_score_F, train_scoreCalc, scores, useForest = True, 
 def benchmark2():
 	feature_combination, use_random_forest, number_of_cores, elutionFiles, all_scoreF, outDir = sys.argv[1:]
 	if feature_combination == "00000000": sys.exit()
-	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(50), CS.Pearson(), CS.Apex()]
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	this_scores = []
 	number_of_cores = int(number_of_cores)
 	for i, feature_selection in enumerate(feature_combination):
@@ -90,17 +90,17 @@ def benchmark2():
 	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
 	scoreCalc = CS.CalculateCoElutionScores()
 	scoreCalc.addLabels(all_p, all_n)
-	scoreCalc.readTable(all_scoreF)
-#	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
+#	scoreCalc.readTable(all_scoreF)
+	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, outDir, number_of_cores)
 
-#	scoreCalc.addLabels(all_p, all_n)
-#	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores)
-#	predF = "%s.pred.txt" % (outDir)
-#	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
-#	os.system(clustering_CMD)
+	scoreCalc.addLabels(all_p, all_n)
+	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores)
+	predF = "%s.pred.txt" % (outDir)
+	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+	os.system(clustering_CMD)
 
 	scoreCalc.addLabels(training_p, training_n)
-	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
+#	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
 	CS.clustering_evaluation(evals, scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
 def benchmark():
@@ -159,11 +159,11 @@ def benchmark():
 	clf = CS.CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=2, useFeatureSelection=False)
 	eval_scores = clf.getValScores()
 	print "Done doing ML"
-#	predicted_ppis = predictInteractions(all_scoreF, scorecalc_train, this_scores, useForest = use_random_forest, num_cores = number_of_cores)
+	predicted_ppis = predictInteractions(all_scoreF, scorecalc_train, this_scores, useForest = use_random_forest, num_cores = number_of_cores)
 	predF = "%s.pred.txt" % (outDir)
-#	predFH = open(predF, "w")
-#	predFH.write("\n".join(predicted_ppis))
-#	predFH.close()
+	predFH = open(predF, "w")
+	predFH.write("\n".join(predicted_ppis))
+	predFH.close()
 	predicted_ppis = CS.lineCount(predF)
 	print "Done with prediction"
 	clustering_CMD = "java -jar /Users/florian/workspace/EPIC/src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)

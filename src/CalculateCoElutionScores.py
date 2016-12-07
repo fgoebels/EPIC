@@ -792,10 +792,14 @@ class CalculateCoElutionScores():
 		print >> outFH, "\t".join(self.header)
 		k = 0
 		ppi_index = 0
+		write_buffer = ""
 		for ppi in toPred:
 			k += 1
 			if k % 100000 == 0:
 				if verbose: print(k)
+				outFH.write(write_buffer)
+				outFH.flush()
+				write_buffer = ""
 			i = 0
 			for _ in elutionDatas:
 				for score in scores:
@@ -810,12 +814,13 @@ class CalculateCoElutionScores():
 				ppi_scores[score_index] = score
 			ppi_scores = np.nan_to_num(np.array(ppi_scores))
 			if len(list(set(np.where(ppi_scores > 0.5)[0]))) > 0:
-				print >> outFH, "%s\t%s" % (ppi, "\t".join(map(str, ppi_scores)))
+				write_buffer +=  "%s\t%s\n" % (ppi, "\t".join(map(str, ppi_scores)))
 				if ppi in gs:
 					self.ppiToIndex[ppi] = ppi_index
 					self.IndexToPpi[ppi_index] = ppi
 					self.scores[ppi_index,:] = ppi_scores
 					ppi_index += 1
+		print >> outFH, write_buffer
 		print("done calcualting co-elution scores")
 		print ppi_index
 		self.scores = self.scores[0:ppi_index,:]
@@ -1054,6 +1059,7 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, verbose= False)
 			tmpscores = np.zeros((100000, data_train.shape[1]))
 			k = 0
 		line = line.rstrip()
+		if line =="":continue
 		linesplit = line.split("\t")
 		edge = "\t".join(sorted(linesplit[0:2]))
 		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
