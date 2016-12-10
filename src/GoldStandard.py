@@ -206,7 +206,7 @@ class Clusters():
 			i+=1
 
 	def write_cuslter_file(self, outF):
-		outFH = open(outF)
+		outFH = open(outF, "w")
 		print >> outFH, self.to_string()
 		outFH.close()
 

@@ -641,6 +641,8 @@ class CalculateCoElutionScores():
 		self.header = ["ProtA","ProtB"]
 		self.ppiToIndex = {}
 		self.IndexToPpi = {}
+		self.positive = set([])
+		self.negative = set([])
 
 	def addLabels(self, positive, negative):
 		self.positive = positive
