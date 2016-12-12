@@ -7,10 +7,32 @@ import os
 
 from itertools import chain, combinations
 
+def calc_chunkscors():
+	number_of_cores, elutionFiles, chunkF  = sys.argv[1:]
+	number_of_cores = int(number_of_cores)
+	ppis = set([])
+	chunkFH = open(chunkF)
+	for line in chunkFH:
+		line = line.rstrip()
+		ppis.add(line)
+	chunkFH.close()
+
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(),
+		  CS.Apex()]
+	_, elution_data = CS.load_data(elutionFiles, scores)
+
+
+	scoreCalc = CS.CalculateCoElutionScores()
+	scoreCalc.calculate_coelutionDatas(elution_data, scores, "", number_of_cores, toPred=ppis)
+	outFH = open(chunkF+".scores.txt","w")
+	scoreCalc.toTable(fh=outFH, labels=False)
+	outFH.close()
 
 def calculate_allscores():
-	number_of_cores, elutionFiles, outDir = sys.argv[1:]
+	number_of_cores, elutionFiles, chunkF, outDir = sys.argv[1:]
 	number_of_cores = int(number_of_cores)
+	ppis = set([])
+	chunkF
 
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	_, elution_data = CS.load_data(elutionFiles, scores)
@@ -47,7 +69,8 @@ def benchmark():
 	CS.clustering_evaluation(evals, scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
 def main():
-	calculate_allscores()
+	calc_chunkscors()
+	#calculate_allscores()
 	#benchmark()
 	#cluster_overlapp()
 

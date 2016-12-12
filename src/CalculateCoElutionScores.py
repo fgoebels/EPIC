@@ -785,13 +785,15 @@ class CalculateCoElutionScores():
 		self.scores = []
 		self.ppiToIndex = {}
 		gs = self.positive | self.negative
-		print len(gs)
+		num_rows = len(gs)
+		if outFile == "": num_rows = 100000
 		num_features = len(scores)*len(elutionDatas)
-		self.scores = np.zeros((len(gs), num_features))
+		self.scores = np.zeros((num_rows, num_features))
 		for i in range(num_cores):  # remove one core since listener is a sapareted process
 			mp.Process(target=getScore, args=(task_queue, out_queue)).start()
-		outFH = open(outFile, "w")
-		print >> outFH, "\t".join(self.header)
+		if outFile != "":
+			outFH = open(outFile, "w")
+			print >> outFH, "\t".join(self.header)
 		k = 0
 		ppi_index = 0
 		write_buffer = ""
@@ -799,8 +801,9 @@ class CalculateCoElutionScores():
 			k += 1
 			if k % 100000 == 0:
 				if verbose: print(k)
-				outFH.write(write_buffer)
-				outFH.flush()
+				if outFile != "":
+					outFH.write(write_buffer)
+					outFH.flush()
 				write_buffer = ""
 			i = 0
 			for _ in elutionDatas:
@@ -816,19 +819,20 @@ class CalculateCoElutionScores():
 				ppi_scores[score_index] = score
 			ppi_scores = np.nan_to_num(np.array(ppi_scores))
 			if len(list(set(np.where(ppi_scores > 0.5)[0]))) > 0:
-				write_buffer +=  "%s\t%s\n" % (ppi, "\t".join(map(str, ppi_scores)))
-				if ppi in gs:
+				if outFile != "": write_buffer +=  "%s\t%s\n" % (ppi, "\t".join(map(str, ppi_scores)))
+				if ppi in gs or outFile=="":
 					self.ppiToIndex[ppi] = ppi_index
 					self.IndexToPpi[ppi_index] = ppi
 					self.scores[ppi_index,:] = ppi_scores
 					ppi_index += 1
-		print >> outFH, write_buffer
+		if outFile != "":
+			print >> outFH, write_buffer
+			outFH.close()
 		print("done calcualting co-elution scores")
-		print ppi_index
 		self.scores = self.scores[0:ppi_index,:]
 		for i in range(num_cores):
 			task_queue.put('STOP')
-		outFH.close()
+
 
 	def getAllPairs_coelutionDatas(self, elutionDatas):
 		allfilteredPPIs = set([])
@@ -851,7 +855,10 @@ class CalculateCoElutionScores():
 		for eD in elutionDatas:
 			for score in scores:
 				self.header.append("%s.%s" % (eD.name, score.name))
-		self.calculateScores(toPred, elutionDatas, scores, outDir + ".scores.txt", num_cores)
+		if outDir == "":
+			self.calculateScores(toPred, elutionDatas, scores, outDir, num_cores)
+		else:
+			self.calculateScores(toPred, elutionDatas, scores, outDir + ".scores.txt", num_cores)
 
 	# @author: Florian Goebels
 	# prints table
