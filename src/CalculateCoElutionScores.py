@@ -900,6 +900,7 @@ class CalculateCoElutionScores():
 		self.ppiToIndex = {}
 		for line in scoreFH:
 			line = line.rstrip()
+			if line == "": continue
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
 			if edge not in gs: continue
@@ -1041,8 +1042,9 @@ def plotCurves(curves, outF, xlab, ylab):
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
 # @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest, num_cores, verbose= False):
-	All_score_FH = open(outDir + ".scores.txt")
+def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= ""):
+	if scoreF =="": outDir + ".scores.txt"
+	All_score_FH = open(scoreF)
 
 
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
@@ -1062,16 +1064,25 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, verbose= False)
 	edges = [""]*100000
 	All_score_FH.readline()
 	k = 0
+	chunk_num=1
 	for line in All_score_FH:
 		if k % 100000==0:
 			out.extend(getPredictions(tmpscores, edges, clf))
 			tmpscores = np.zeros((100000, data_train.shape[1]))
+			if verbose:
+				print "Completed chunk %i" % chunk_num
+				chunk_num += 1
 			k = 0
 		line = line.rstrip()
 		if line =="":continue
 		linesplit = line.split("\t")
 		edge = "\t".join(sorted(linesplit[0:2]))
-		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
+		if fs =="":
+			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
+		else:
+			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], ))).reshape(1, -1)
+		print edge_scores
+		sys.exit()
 		edges[k] = edge
 		tmpscores[k,:] = edge_scores
 		k += 1
@@ -1163,7 +1174,7 @@ def main():
 	clustering_evaluation(evals, scoreCalc, out_dir, ",".join([score.name for score in this_scores]), num_cores, use_rf)
 
 def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_of_cores, use_random_forest):
-	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
+	training_p, training_n, go_complexes, corum_complexes = evals
 	scoreCalc.addLabels(training_p, training_n)
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
 	print data.shape
