@@ -1081,8 +1081,6 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
 		else:
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], ))).reshape(1, -1)
-		print edge_scores
-		sys.exit()
 		edges[k] = edge
 		tmpscores[k,:] = edge_scores
 		k += 1
