@@ -297,7 +297,7 @@ class Clusters():
 				out[prot].add(cluster)
 		return out
 
-	def getOverlapp(self, complexesB, cutoff = 0.25):
+	def getOverlapp(self, complexesB, cutoff = 0.5):
 		out = 0
 		for comp_ID_A in self.complexes.keys():
 			protsA = self.complexes[comp_ID_A]

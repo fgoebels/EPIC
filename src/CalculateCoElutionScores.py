@@ -117,14 +117,19 @@ class ElutionData():
 		i = 0
 		elutionMat = []
 		prot2Index = {}
+		removed = 0
 		for line in elutionProfileFH:
 			line = line.rstrip()
 			line = line.split("\t")
 			protID = line[0]
 			counts = map(float, line[1:])
-			elutionMat.append(counts)
-			prot2Index[protID] = i
-			i += 1
+			if len(list(set(np.where(np.array(counts) > 0.0)[0]))) > 1:
+				elutionMat.append(counts)
+				prot2Index[protID] = i
+				i += 1
+			else:
+				removed += 1
+		print "finished processing %s\n removed %i (%.2f)proteins with counts in only one fraction" % (elutionProfileF, removed, removed/(removed + len(prot2Index)))
 		elutionProfileFH.close()
 		elutionMat = np.nan_to_num(np.matrix(elutionMat))
 		return elutionMat, prot2Index
@@ -645,8 +650,8 @@ class CalculateCoElutionScores():
 		self.negative = set([])
 
 	def addLabels(self, positive, negative):
-		self.positive = positive
-		self.negative = negative
+		self.positive = positive & set(self.ppiToIndex.keys())
+		self.negative = negative & set(self.ppiToIndex.keys())
 
 #		for ppi in positive:
 #			if ppi in self.ppiToIndex: self.positive.add(ppi)
@@ -1042,7 +1047,7 @@ def plotCurves(curves, outF, xlab, ylab):
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
 # @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= ""):
+def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= "", score_cutoff=0.5):
 	if scoreF =="": outDir + ".scores.txt"
 	All_score_FH = open(scoreF)
 
@@ -1081,9 +1086,10 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
 		else:
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], ))).reshape(1, -1)
-		edges[k] = edge
-		tmpscores[k,:] = edge_scores
-		k += 1
+		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0:
+			edges[k] = edge
+			tmpscores[k,:] = edge_scores
+			k += 1
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	All_score_FH.close()
 
@@ -1162,7 +1168,7 @@ def main():
 	scoreCalc = CalculateCoElutionScores()
 	scoreCalc.addLabels(all_p, all_n)
 	scoreCalc.readTable("/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test.scores.txt")
-	#scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, out_dir, num_cores)
+	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, out_dir, num_cores)
 	scoreCalc.addLabels(training_p, training_n)
 	print "doing benchmark"
 	bench_scores(scoreCalc, out_dir, num_cores, useForest=use_rf)
@@ -1172,8 +1178,7 @@ def main():
 	clustering_evaluation(evals, scoreCalc, out_dir, ",".join([score.name for score in this_scores]), num_cores, use_rf)
 
 def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_of_cores, use_random_forest):
-	training_p, training_n, go_complexes, corum_complexes = evals
-	scoreCalc.addLabels(training_p, training_n)
+	_, _, go_complexes, corum_complexes = evals
 	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
 	print data.shape
 	num_training_ppi = data.shape[0]
@@ -1185,7 +1190,13 @@ def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_
 	predicted_ppis = lineCount(predF)
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
 	pred_clusters.read_file("%s.clust.txt" % (outDir))
+	print len(pred_clusters.complexes)
 	pred_clusters.filter_complexes()
+	print len(pred_clusters.complexes)
+	pred_clusters.merge_complexes()
+	pred_clusters.filter_complexes()
+	print len(pred_clusters.complexes)
+
 	pred_clusters = pred_clusters
 	corum_scores = "\t".join(map(str, pred_clusters.clus_eval(corum_complexes)))
 	go_scores = "\t".join(map(str, pred_clusters.clus_eval(go_complexes)))
@@ -1193,7 +1204,7 @@ def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_
 		feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis,
 		len(pred_clusters.complexes), corum_scores, go_scores)
 	linesplit = line.split("\t")
-	for i, cat in enumerate(["Features", "PPi in training set", "Precision", "Recall", "F-measure", "auPR", "auROC", "Num predicted PPIs", "Num predicted clusters", "CORUM mmr", "CORUM overlapp", "CORUM simcoe", "CORUM mean_simcoe_overlap", "CORUM sensetivity", "CORUM accuracy", "CORUM sep", "GO mmr", "GO overlapp", "GO simcoe", "GO mean_simcoe_overlap", "GO sensetivity", "GO accuracy", "GO sep"]):
+	for i, cat in enumerate(["Features", "PPi in training set", "Precision", "Recall", "F-measure", "auPR", "auROC", "Num predicted PPIs", "Num predicted clusters", "CORUM mmr", "CORUM overlapp", "CORUM simcoe", "CORUM mean_simcoe_overlap", "CORUM sensetivity", "CORUM ppv", "CORUM accuracy", "CORUM sep", "GO mmr", "GO overlapp", "GO simcoe", "GO mean_simcoe_overlap", "GO sensetivity", "GO ppv", "GO accuracy", "GO sep"]):
 		print "%s\t\t%s" % (cat, linesplit[i])
 
 	outFH = open("%s.eval.txt" % (outDir), "w")
