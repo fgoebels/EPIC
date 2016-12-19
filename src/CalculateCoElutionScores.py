@@ -32,6 +32,8 @@ from bs4 import BeautifulSoup
 import urllib
 import urllib2
 import os 
+import re
+
 
 
 # GLobal static objects used across the files
@@ -531,14 +533,20 @@ class Genemania:
 	
 	def __init__(self, taxID):
 		self.taxoID = taxID
+
+		#create a protein_pair_mapping dictionary, GeneManiaName - UniProtName
+		self.nameMappingDict = {}
+
+		#create a geneName mapping dictionary based on Uniprot website database
+		self.map_proteinNames()
+
 		# Get all Genemania files
+		self.files = []
 		self.catchFile()
 		# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" and "Predicted" to eliminate circularity
 		self.functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Shared']
 		# loads all of Worm Gene
 		self.load_genemania()
-
-#	def get_score(self, ppi):
 
 	# @auothor Lucas Ming Hu
 	# the catchFile function can help to download files from GeneMANIA website automatically.	
@@ -561,9 +569,9 @@ class Genemania:
 		for row in table.find_all('tr'):
 			for col in row.find_all('td'):
 				allcell.append(col.getText())
-    
+
 		#filtering 
-		self.files = []
+		#self.files = []
 		for c in allcell:
 			if '.txt' in c:
 				self.files.append(os.path.join(speciesURL,c))
@@ -576,8 +584,8 @@ class Genemania:
 		for key in secondaryEvidenceDic:
 			resultDict[key] = sum(secondaryEvidenceDic[key]) * 1.0 / len(secondaryEvidenceDic[key])
 		return resultDict
-	
-	
+
+	# @author: Lucas Ming Hu
 	# returns Functional anotation scores as a CalculateCoElutionScores Object
 	def load_genemania(self):
 		self.scores = {}
@@ -595,18 +603,77 @@ class Genemania:
 					fh.readline()
 					for line in fh:
 						proteinA, proteinB, score = line.split()
-						edge = "\t".join(sorted([proteinA, proteinB]))
-						score = float(score)
-						if edge not in this_evidence_scores: this_evidence_scores[edge] = np.array([0, 0])
-						this_evidence_scores[edge][0] += score
-						this_evidence_scores[edge][1] += 1
+
+						# transfer the GeneMANIA gene name to its corresponding UniPort name
+						if ((proteinA in self.nameMappingDict) and (proteinB in self.nameMappingDict)):
+							proteinAUniprot = self.nameMappingDict[proteinA]
+							proteinBUniprot = self.nameMappingDict[proteinB]
+
+							edge = "\t".join(sorted([proteinAUniprot, proteinBUniprot]))
+							score = float(score)
+
+							if edge not in this_evidence_scores:
+								this_evidence_scores[edge] = [0, 0]
+								(this_evidence_scores[edge])[0] = score
+								(this_evidence_scores[edge])[1] = 1
+							else:
+								(this_evidence_scores[edge])[0] = (this_evidence_scores[edge])[0] + score
+								(this_evidence_scores[edge])[1] = (this_evidence_scores[edge])[1] + 1
+
 					fh.close()
 
-		for edge in this_evidence_scores:
-			score, counts = this_evidence_scores[edge]
-			avg_score = score/counts
-			if edge not in self.scores: self.scores[edge] = [0]*len(self.functionalEvidences)
-			self.scores[edge][i] = avg_score
+			for edge in this_evidence_scores:
+				score, counts = this_evidence_scores[edge]
+				avg_score = score/counts
+				if edge not in self.scores: self.scores[edge] = [0]*len(self.functionalEvidences)
+				self.scores[edge][i] = avg_score
+
+
+	# @author: Lucas Ming Hu
+	# read name mapping database and put Uniprot and corresponding GeneMANIA name into a dictionary
+	# key: GeneMANIA_name value: Uniprot_name
+	def map_proteinNames(self):
+		
+		taxoIDurl = {'6239':'http://www.uniprot.org/uniprot/?query=taxonomy%3A6239&sort=score&columns=id,genes(ORF)&format=tab',
+					 '3702':'http://www.uniprot.org/uniprot/?query=taxonomy%3A3702&sort=score&columns=id,genes(OLN)&format=tab',
+					 '7955':'http://www.uniprot.org/uniprot/?query=taxonomy%3A7955&sort=score&columns=id,database(Ensembl)&format=tab',
+					 '7227':'http://www.uniprot.org/uniprot/?query=taxonomy%3A7227&sort=score&columns=id,database(FlyBase)&format=tab',
+					 '4932':'http://www.uniprot.org/uniprot/?query=taxonomy%3A4932&sort=score&columns=id,genes&format=tab'}
+
+		response = urllib2.urlopen(taxoIDurl[self.taxoID])
+		
+		html = response.readlines() #return everything in a list, each item in the list is a line in original file
+		
+		unipront_geneNames_dic = {}
+		
+		for item in html[1:]:
+			
+			items = item.split("\t")
+			uniprot = items[0]
+
+			geneNames = items[1].strip(';') #some names has ; at the end
+			geneNames = items[1].strip()
+			
+			genes_list = re.split('[;\s\|\/]', geneNames)
+			
+			new_list = list(genes_list) #make a new list to clone original list, otherwise, the code wont work.
+			
+			for gene_names in genes_list:
+			    
+				if "CELE" in gene_names:
+					new_list.remove(gene_names)
+			
+			new_list = filter(None, new_list) #remove the empty item from the list
+				
+			if len(new_list) > 0 :
+				unipront_geneNames_dic[uniprot] = new_list
+			
+		for key, value in unipront_geneNames_dic.iteritems():
+			for i in range(0, len(value)):
+				if value[i] not in self.nameMappingDict:
+					self.nameMappingDict[value[i]] = key
+
+
 
 
 # @ author Florian Goebels
