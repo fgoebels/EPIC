@@ -3,9 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="6958c5a6-c9bc-4d23-88a1-17cb0a60b67f" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/CalculateCoElutionScores.py" afterPath="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/EPIC.ipynb" afterPath="$PROJECT_DIR$/src/EPIC.ipynb" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/GoldStandard.py" afterPath="$PROJECT_DIR$/src/GoldStandard.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/fs.py" afterPath="$PROJECT_DIR$/src/fs.py" />
     </list>
     <ignored path="EPIC.iws" />
@@ -30,11 +27,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="fs.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="fs.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/fs.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="840">
-              <caret line="187" column="4" selection-start-line="187" selection-start-column="4" selection-end-line="187" selection-end-column="4" />
+            <state relative-caret-position="885">
+              <caret line="165" column="17" selection-start-line="165" selection-start-column="17" selection-end-line="165" selection-end-column="17" />
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -42,11 +39,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="CalculateCoElutionScores.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="CalculateCoElutionScores.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1965">
-              <caret line="131" column="65" selection-start-line="131" selection-start-column="65" selection-end-line="131" selection-end-column="65" />
+            <state relative-caret-position="960">
+              <caret line="1156" column="27" selection-start-line="1156" selection-start-column="27" selection-end-line="1156" selection-end-column="27" />
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -57,8 +54,8 @@
       <file leaf-file-name="GoldStandard.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="15">
-              <caret line="207" column="26" selection-start-line="207" selection-start-column="8" selection-end-line="207" selection-end-column="26" />
+            <state relative-caret-position="630">
+              <caret line="187" column="8" selection-start-line="187" selection-start-column="8" selection-end-line="187" selection-end-column="8" />
               <folding />
             </state>
           </provider>
@@ -77,8 +74,8 @@
         <option value="$PROJECT_DIR$/../mouseMap/src/MergeSRAandGEO.py" />
         <option value="$PROJECT_DIR$/../mouseMap/src/utils.py" />
         <option value="$PROJECT_DIR$/src/GoldStandard.py" />
-        <option value="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
         <option value="$PROJECT_DIR$/src/fs.py" />
+        <option value="$PROJECT_DIR$/src/CalculateCoElutionScores.py" />
       </list>
     </option>
   </component>
@@ -478,7 +475,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/CalculateCoElutionScores.py</url>
-          <line>1201</line>
+          <line>1268</line>
           <option name="timeStamp" value="3" />
         </line-breakpoint>
       </breakpoints>
@@ -818,28 +815,28 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1965">
-          <caret line="131" column="65" selection-start-line="131" selection-start-column="65" selection-end-line="131" selection-end-column="65" />
-          <folding>
-            <element signature="e#0#31#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/GoldStandard.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="15">
-          <caret line="207" column="26" selection-start-line="207" selection-start-column="8" selection-end-line="207" selection-end-column="26" />
+        <state relative-caret-position="630">
+          <caret line="187" column="8" selection-start-line="187" selection-start-column="8" selection-end-line="187" selection-end-column="8" />
           <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/fs.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="840">
-          <caret line="187" column="4" selection-start-line="187" selection-start-column="4" selection-end-line="187" selection-end-column="4" />
+        <state relative-caret-position="885">
+          <caret line="165" column="17" selection-start-line="165" selection-start-column="17" selection-end-line="165" selection-end-column="17" />
+          <folding>
+            <element signature="e#0#31#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/CalculateCoElutionScores.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="960">
+          <caret line="1156" column="27" selection-start-line="1156" selection-start-column="27" selection-end-line="1156" selection-end-column="27" />
           <folding>
             <element signature="e#0#31#0" expanded="true" />
           </folding>

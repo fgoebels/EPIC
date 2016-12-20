@@ -131,7 +131,7 @@ def make_ref_data():
 def benchmark():
 	feature_combination, use_random_forest, number_of_cores, gsF, corumF, goF, evalF, all_scoreF, outDir = sys.argv[1:]
 	if feature_combination == "00000000": sys.exit()
-	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(50), CS.Pearson(), CS.Apex()]
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	this_scores = []
 	number_of_cores = int(number_of_cores)
 	for i, feature_selection in enumerate(feature_combination):
@@ -140,22 +140,11 @@ def benchmark():
 
 #	foundprots, elution_datas = CS.load_data(data_dir, this_scores)
 
-	lb=2
-	go_complexes = GS.Clusters(False, lb=lb)
+	go_complexes = GS.Clusters(False)
 	go_complexes.read_file(goF)
-	go_complexes.filter_complexes()
-	go_complexes.merge_complexes()
-	go_complexes.filter_complexes()
-#	go_complexes.remove_proteins(foundprots)
 
-	corum_complexes = GS.Clusters(False, lb=lb)
+	corum_complexes = GS.Clusters(False)
 	corum_complexes.read_file(corumF)
-	print len(corum_complexes.complexes)
-	corum_complexes.filter_complexes()
-	corum_complexes.merge_complexes()
-	corum_complexes.filter_complexes()
-#	corum_complexes.remove_proteins(foundprots)
-	print len(corum_complexes.complexes)
 
 	gs = GS.Goldstandard_from_reference_File(gsF)
 	training_p, training_n = gs.goldstandard_positive, gs.goldstandard_negative
@@ -184,11 +173,11 @@ def benchmark():
 	CS.clustering_evaluation([training_p, training_n, go_complexes, corum_complexes], scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
 def main():
-	#make_ref_data()
-	calc_chunkscors()
-	#calculate_allscores()
-	#benchmark()
+#	make_ref_data()
+	benchmark()
 	#cluster_overlapp()
+	# calc_chunkscors()
+	# calculate_allscores()
 
 if __name__ == "__main__":
 	try:
