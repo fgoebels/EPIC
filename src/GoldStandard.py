@@ -451,7 +451,7 @@ class QuickGO():
 
 	# @author Florian Goebels
 	# automaticallys downloads go anntotation for a given tax id
-	# TODO create switch to select which level of go annotaiton to by downloaded IEA and Manula, right now it only gets mahual annotation
+	# TODO create switch to select which level of go annotaiton
 	# @param
 	#		taxid species for which go annotation should be downloaded
 	def getGO(self, taxid):

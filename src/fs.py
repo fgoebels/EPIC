@@ -4,10 +4,12 @@ import GoldStandard as GS
 import numpy as np
 import sys
 import os
+import glob
 
 from itertools import chain, combinations
 
-def get_cols(header, feature_scores):
+
+def get_cols(header, feature_scores, elution_files = ""):
 	scoreNames = set([])
 	for st in feature_scores: scoreNames.add(st.name)
 	to_keep_header = [0, 1]
@@ -15,18 +17,24 @@ def get_cols(header, feature_scores):
 	for i in range(2, len(header)):
 		colname = header[i]
 		scorename = colname.split(".")[-1]
-		if scorename in scoreNames:
+		filename = colname.rsplit(".", 1)[0]
+
+		if (scorename in scoreNames and elution_files =="") or (scorename in scoreNames and filename in elution_files):
 			to_keep_header.append(i)
 			to_keep_score.append(i - 2)
 	new_header = list(np.array(header)[to_keep_header])
 	return new_header, to_keep_score
 
-def readTable(feature_scores, scoreF, gs, score_cutoff = 0.5 ):
+def readTable(feature_scores, scoreF, gs, score_cutoff = 0.5, outF = "", elution_files = "" ):
 	out = CS.CalculateCoElutionScores()
+	if outF !="":  outFH = open(outF, "w")
 	with open(scoreF) as scoreFH:
 		header = scoreFH.readline().rstrip().split("\t")
-		new_header, scores_to_keep = get_cols(header, feature_scores)
+		new_header, scores_to_keep = get_cols(header, feature_scores, elution_files)
 		out.header = new_header
+		if outF !="":
+			print >> outFH, "\t".join(new_header)
+			outFH.flush()
 		out.scores = np.zeros((len(gs), len(new_header) - 2))
 		i = 0
 		out.ppiToIndex = {}
@@ -37,16 +45,28 @@ def readTable(feature_scores, scoreF, gs, score_cutoff = 0.5 ):
 			if gs !="" and edge not in gs: continue
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[scores_to_keep],)))
 			if len(list(set(np.where(edge_scores > score_cutoff)[0])))>0:
+				if outF!="":
+					print >> outFH, "%s\t%s" % (edge, "\t".join(map(str, edge_scores)))
+					continue
 				out.scores[i, :] = edge_scores
 				out.IndexToPpi[i] = edge
 				out.ppiToIndex[edge] = i
 				i += 1
-	print i
 	out.scores = out.scores[:i,:] # remove empty zero rows at the end of the matrix
-	print out.scores[10,:]
-	print out.scores.shape
 	scoreFH.close()
+	if outF != "": outFH.close()
 	return out, scores_to_keep
+
+def cut_table():
+	feature_combination, all_scoreF, outF = sys.argv[1:]
+	if feature_combination == "00000000": sys.exit()
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
+	this_scores = []
+	for i, feature_selection in enumerate(feature_combination):
+		if feature_selection == "1": this_scores.append(scores[i])
+	print this_scores
+	readTable(this_scores, all_scoreF,  outF = outF, gs="",)
+
 
 def calc_chunkscors():
 	number_of_cores, elutionFiles, chunkF  = sys.argv[1:]
@@ -81,32 +101,6 @@ def calculate_allscores():
 	scoreCalc = CS.CalculateCoElutionScores()
 	scoreCalc.calculate_coelutionDatas(elution_data, scores, outDir, number_of_cores)
 
-
-
-def predictInteractions(All_score_F, outDir, train_scoreCalc, scores, useForest = True, num_cores =4, score_cutoff=0.5):
-	out = []
-	All_score_FH = open(All_score_F)
-	header = All_score_FH.readline().rstrip().split("\t")
-	new_header, scores_to_keep = get_cols(header, scores)
-
-	ids_train, data_train, targets_train = train_scoreCalc.toSklearnData(get_preds=False)
-	clf = CS.CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
-
-	for line in All_score_FH:
-		line = line.rstrip()
-		linesplit = line.split("\t")
-		edge = "\t".join(sorted(linesplit[0:2]))
-		edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[scores_to_keep], ))).reshape(1, -1)
-		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0:
-			pred_prob = clf.predict_proba(edge_scores)
-			pred_class = clf.predict(edge_scores)
-			if pred_class == 1:
-				out.append("%s\t%f\n" % (edge, pred_prob))
-	All_score_FH.close()
-	outFH = open(outDir + ".pred.txt", "w")
-	outFH.write("\n".join(out))
-	outFH.close()
-
 def make_ref_data():
 	target_taxid, elution_profiles_dir, out_dir = sys.argv[1:]
 	foundprots, elution_datas = CS.load_data(elution_profiles_dir, [])
@@ -133,6 +127,7 @@ def benchmark():
 	if feature_combination == "00000000": sys.exit()
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	this_scores = []
+	use_random_forest = use_random_forest == "True"
 	number_of_cores = int(number_of_cores)
 	for i, feature_selection in enumerate(feature_combination):
 		if feature_selection == "1": this_scores.append(scores[i])
@@ -162,9 +157,9 @@ def benchmark():
 	print len(scoreCalc.negative)
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
 	print data_train.shape
-	#predictInteractions(all_scoreF, outDir, scoreCalc, this_scores, use_random_forest, number_of_cores, 0.5)
 	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
 	predF = "%s.pred.txt" % (outDir)
+#	predF = "/Users/florian/workspace/scratch/EPIC_out/MaxQ_MS1_MS2.pred.positive.txt"
 	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	os.system(clustering_CMD)
 
@@ -172,12 +167,14 @@ def benchmark():
 #	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
 	CS.clustering_evaluation([training_p, training_n, go_complexes, corum_complexes], scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
+
 def main():
+#	cut_table()
 #	make_ref_data()
 	benchmark()
-	#cluster_overlapp()
-	# calc_chunkscors()
-	# calculate_allscores()
+#	cluster_overlapp()
+#	calc_chunkscors()
+#	calculate_allscores()
 
 if __name__ == "__main__":
 	try:

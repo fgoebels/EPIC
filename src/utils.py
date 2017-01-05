@@ -5,60 +5,12 @@ import GoldStandard as GS
 import copy
 import numpy as np
 import sys
-import os
+import os, math
 from matplotlib import pyplot as plt
 #from matplotlib_venn import venn3
-
-
-def mapPPI(ppiF, mappingF, outF, foundprots=""):
-	def readMapping(mappingF):
-		mappingFH = open(mappingF)
-		out = {}
-		todel = set([])
-		mappingFH.readline()
-		for line in mappingFH:
-			line = line.rstrip()
-			linesplit = line.split("\t")
-			if len(linesplit) <= 1 : continue
-			ida, idbs = line.rstrip().split("\t")
-			if foundprots != "" and ida not in foundprots: continue
-			idbs = idbs.split(";")
-			for idb in idbs:
-				if idb=="":continue
-				if idb not in out:
-					out[idb] = ida
-				else:
-					todel.add(idb)
-
-
-		for id in todel:
-			del out[id]
-
-		return out
-
-	if mappingF !="NA":
-		mapping = readMapping(mappingF)
-	else:
-		mapping = foundprots
-
-	outFH = open(outF, "w")
-	ppiFH = open(ppiF)
-	for line in ppiFH:
-		line = line.rstrip()
-		linesplit = line.split("\t")
-		ida, idb = linesplit[0:2]
-		if ida == idb: continue
-		if mapping!="" and (ida not in mapping or idb not in mapping): continue
-		edge = "\t".join(sorted([ida, idb]))
-		if  mappingF !="NA":
-			ida_mapped = mapping[ida]
-			idb_mapped = mapping[idb]
-			edge =  "\t".join(sorted([ida_mapped, idb_mapped]))
-		print >> outFH, "%s\t%s" % (edge, "\t".join(linesplit[2:]))
-	outFH.close()
-	ppiFH.close()
-
-
+import glob
+import random as re
+import fs as fs
 
 
 
@@ -116,9 +68,6 @@ def get_cluster_overlapp():
 	outFH.close()
 
 def gs_cluster_overlapp():
-
-
-
 	elutionFH = open("/Users/florian/workspace/scratch/EPIC_out/1D_files.txt")
 	elutionProts = set([])
 	for elutionFile in elutionFH:
@@ -193,53 +142,305 @@ def gs_cluster_overlapp():
 	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_p_val.pdf")
 	plt.close()
 
-def test_geneMania():
-	scorecalc = CS.CalculateCoElutionScores()
-	scorecalc.readTable("/Users/florian/workspace/scratch/EPIC_out/tmp2")
-	ppis =  scorecalc.ppiToIndex.keys()
-	target_species = "6239"
-	genemania = CS.Genemania(target_species)
+def epic_read_eval(fs_eval_F):
+	fs_eval_FH = open(fs_eval_F)
+	vals = []
+	fs = []
+	header = fs_eval_FH.readline().strip().split("\t")[7:]
 
-def readPPIs(ppiF):
-	ppiFH = open(ppiF)
-	out = set()
-	for line in ppiFH:
-		out.add(line.rstrip())
+	for line in fs_eval_FH:
+		line = line.rstrip().split("\t")
+		vals.append(map(float, line[7:]))
+		fs.append(line[0])
+	fs_eval_FH.close()
+
+	vals = np.array(vals)
+	return header, fs, vals
+
+def EPICFS_eval(fs_eval_F="", verbose=True, filter=True):
+	if fs_eval_F =="": fs_eval_F = sys.argv[1]
+
+	header, fs, vals = epic_read_eval(fs_eval_F)
+
+	if filter:
+		sel_vals = list(np.where(vals[:, 1] >= 100)[0])
+		vals = vals[sel_vals,]
+
+	best_fs = []
+
+	for i in range(len(header)):
+		max_index = np.argmax(np.array(vals[:,i]))
+		pred_comp_val = str(int(vals[max_index, 1]))
+		best_fs.append(fs[max_index])
+
+		if not verbose:continue
+		if i <=1:
+			print "%i (%s)\t%s" % (int(vals[max_index, i]), pred_comp_val, fs[max_index])
+		else:
+			print "%.3f (%s)\t%s" % (vals[max_index,i], pred_comp_val, fs[max_index])
+
+	return best_fs
+
+def get_max_vals(vals, fs, header):
+	out = {}
+	for i in range(len(header)):
+		max_index = np.argmax(np.array(vals[:,i]))
+		out[header[i]] =  vals[max_index,i]
 	return out
 
+def EPIC_count_fs():
+
+	counts = {}
+	best_fs = EPICFS_eval(verbose=False)
+
+	for cat in [[2],[3,4,5],[6],[7],[8],[9],[10],[11,12,13],[14],[15],[16],[17]]:
+		fs = set()
+		for i in cat:
+			fs |= set(best_fs[i].split(","))
+		for feature in fs:
+			if feature not in counts:counts[feature]=0
+			counts[feature]+= 1
+
+	for feature in sorted(counts.keys()):
+		print feature
+
+	for feature in sorted(counts.keys()):
+		print counts[feature]
+
+def EPIC_eval_fs_DIST():
+	def getScore(scores):
+		out = []
+		for cat in [[2], [3, 4, 5], [6], [7], [8], [9], [10], [11, 12, 13], [14], [15], [16], [17]]:
+			out.append(sum(scores[cat])/len(cat))
+		return out
+	def dist(a,b):
+		return math.sqrt(sum([math.pow(a[i]-b[i],2) for i in range(len(a))]))
+
+	all_scores = {}
+
+	fs_eval_Files = sys.argv[1:]
+	max_vals = []
+	for fs_eval_F in fs_eval_Files:
+		header, fs, vals = epic_read_eval(fs_eval_F)
+		sel_vals = list(np.where(vals[:, 1] >= 100)[0])
+		vals = vals[sel_vals,]
+		fs = np.array(fs)[sel_vals,]
+		all_scores[fs_eval_F] = (header, fs, vals)
+
+		this_max_vals = []
+		for i in range(len(header)):
+			max_index = np.argmax(np.array(vals[:, i]))
+			this_max_vals.append(vals[max_index, i])
+		max_vals.append(getScore(np.array(this_max_vals)))
+
+	max_vals = np.array(max_vals)
+
+	tmp = []
+	for i in range(max_vals.shape[1]):
+		tmp.append(max(max_vals[:,i]))
+	max_vals = np.array(tmp)
+
+	scores = {}
+	for score in all_scores:
+		header, fs, vals = all_scores[score]
+		for i in range(len(fs)):
+			this_f = fs[i]
+			this_vals = getScore(vals[i,:])
+			this_dist = dist(this_vals,max_vals)
+			scores[(score, this_f)] = this_dist
+
+	best_dist = min(scores.values())
+	for score, f in scores:
+		header, fs, vals = all_scores[score]
+		if scores[(score,f)]==best_dist:
+			print score
+			print f
+			print "\n".join(map(str,vals[np.where(fs==f)[0],:][0]))
+
+def EPIC_eval_fs():
+	fs_a, fs_b, fs_eval_F = sys.argv[1:]
+
+	fs_a = fs_a.split("_")
+	fs_a = [set(f.split(",")) for f in fs_a]
+
+	fs_b = fs_b.split("_")
+	fs_b = [set(f.split(",")) for f in fs_b]
+	header, fs, vals = epic_read_eval(fs_eval_F)
+	sel_vals = list(np.where(vals[:, 1] >= 100)[0])
+	vals = vals[sel_vals,]
+	fs = np.array(fs)[sel_vals,]
+
+	fs_index = {}
+	for i in range(len(fs)):
+		fs_index[tuple(set(fs[i].split(",")))] = i
+
+	best = {}
+	for h in header[2:]:
+		best[h] = (set([]), 0.0)
+	cur_fs = set([])
+	for f in fs_a:
+		cur_fs |= f
+		tmp_fs = tuple(set([]) | cur_fs)
+		if tmp_fs not in fs_index: continue
+		print cur_fs
+		cur_vals = vals[fs_index[tmp_fs],:]
+		for i, val in enumerate(cur_vals):
+			if i <2:continue
+			cat = header[i]
+			if val > best[cat][1]:
+				best[cat] = (tmp_fs, val)
+
+
+	cur_fs = set([])
+	for f in fs_b:
+		cur_fs |= set(f)
+		tmp_fs = tuple(set([]) | cur_fs)
+		if tmp_fs not in fs_index: continue
+		print cur_fs
+		cur_vals = vals[fs_index[tmp_fs], :]
+		for i, val in enumerate(cur_vals):
+			if i < 2: continue
+			cat = header[i]
+			if val > best[cat][1]:
+				best[cat] = (tmp_fs, val)
+
+	counts = {}
+	for cat in [[2],[3,4,5],[6],[7],[8],[9],[10],[11,12,13],[14],[15],[16],[17]]:
+		cats = [header[i] for i in cat]
+		tmp_counts={}
+		for cat in cats:
+			f, val = best[cat]
+			if tuple(f) not in tmp_counts:tmp_counts[tuple(f)]=0
+			tmp_counts[tuple(f)]+=1
+
+		max_val = max(tmp_counts.values())
+		for f in tmp_counts:
+			this_v = tmp_counts[f]
+			if max_val == this_v:
+				print f
+				print cats
+				if f not in counts:counts[f]=0
+				counts[f]+=1
+
+	max_val = max(counts.values())
+	for f in counts:
+		if counts[f] == max_val:
+			print ",".join(f)
+			print counts[f]
+			print "\n".join(map(str,vals[fs_index[f], :]))
+
+
+def EPIC_cor():
+	fs_eval_dir = sys.argv[1]
+	vals = []
+	fs = []
+	for fs_eval_F in os.listdir(fs_eval_dir):
+		if not fs_eval_F.endswith(".eval.txt"): continue
+		fs_eval_F = fs_eval_dir + os.sep + fs_eval_F
+		print fs_eval_F
+		fs_eval_FH = open(fs_eval_F)
+		fs_eval_FH.readline()
+		for line in fs_eval_FH:
+			line = line.rstrip().split("\t")
+			vals.append(map(float, line[7:]))
+			fs.append(line[0])
+		fs_eval_FH.close()
+	vals = np.array(vals)
+	for row in np.corrcoef(np.transpose(vals)):
+		print "\t".join(map(str, row))
+
+
+def exp_comb():
+	i, j, expdir, gsF, corumF, goF, ref_scores_F, all_scores_F, outDir = sys.argv[1:]
+	# EPIC paramters
+	num_cores = 4
+	rf = True
+	this_fs = [CS.Poisson(5), CS.MutualInformation()]
+#	this_fs = [CS.Apex(), CS.Wcc(), CS.Poisson(5), CS.MutualInformation()]
+
+	i = int(i)
+	j = int(j)
+
+	all_exp =  map(str, glob.glob(expdir + "*.txt"))
+	iex_exp = [f for f in all_exp if(f.split(os.sep)[-1].startswith("all")) ]
+	beads_exp = [ f for f in all_exp if ( not f.split(os.sep)[-1].startswith("all"))]
+
+	if(i>len(iex_exp)):
+		print "i is to large"
+		sys.exit()
+	if (j > len(beads_exp)):
+		print "j is to large"
+		sys.exit()
+
+	if i == 0 and j == 0: sys.exit()
+	out_lines = []
+	for k in range(2):
+		this_iex   = re.sample(iex_exp,i)
+		this_beads = re.sample(beads_exp,j)
+		print this_beads
+		elution_profiels = this_iex + this_beads
+		elutionDatas = []
+		foundprots = set([])
+		fnames = set([])
+		for elutionFile in elution_profiels:
+			fnames.add(elutionFile.split(os.sep)[-1])
+			elutionData = CS.ElutionData(elutionFile)
+			elutionDatas.append(elutionData)
+			foundprots = foundprots | set(elutionData.prot2Index.keys())
+			for score in this_fs:
+				score.init(elutionData)
+
+		go_complexes = GS.Clusters(False)
+		go_complexes.read_file(goF)
+		go_complexes.remove_proteins(foundprots)
+		go_complexes.filter_complexes()
+
+		corum_complexes = GS.Clusters(False)
+		corum_complexes.read_file(corumF)
+		corum_complexes.remove_proteins(foundprots)
+		corum_complexes.filter_complexes()
+
+		gs = GS.Goldstandard_from_reference_File(gsF)
+		training_p, training_n = gs.goldstandard_positive, gs.goldstandard_negative
+		print "Done loading gs"
+#				evals = CS.create_goldstandard(taxid, foundprots)
+#				training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
+#				scoreCalc = CS.CalculateCoElutionScores()
+#				scoreCalc.addLabels(all_p, all_n)
+#				scoreCalc.calculate_coelutionDatas(elutionDatas, this_scores, output_dir, num_cores)
+		scoreCalc, scores_to_keep = fs.readTable(this_fs, ref_scores_F, gs=training_p | training_n, elution_files=fnames)
+
+		scoreCalc.addLabels(training_p, training_n)
+		scoreCalc.rebalance(ratio=5)
+		print len(scoreCalc.positive)
+		print len(scoreCalc.negative)
+		print scoreCalc.scores.shape
+		ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
+		print data_train.shape
+
+		this_outDir = outDir + "IEX_%i_BEADS_%i_%i" % (i,j,k)
+
+		CS.predictInteractions(scoreCalc, this_outDir, rf, num_cores, scoreF=all_scores_F,
+							   verbose=True, fs=scores_to_keep)
+		predF = "%s.pred.txt" % (this_outDir)
+		clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, this_outDir )
+		os.system(clustering_CMD)
+		eval_line = CS.clustering_evaluation([training_p, training_n, go_complexes, corum_complexes], scoreCalc, this_outDir,
+								 ",".join([score.name for score in this_fs]), num_cores,
+								 rf)
+		out_lines.append("%i\t%i\t%s" % (i,j,eval_line))
+
+	outFH = open(outDir + "IEX_%i_BEADS_%i.comb.eval.txt" % (i,j), "w")
+	print >> outFH, "\n".join(out_lines)
+	outFH.close()
+
 def main():
-	test_geneMania()
-	sys.exit()
-
-	elutionFH = open("/Users/florian/workspace/scratch/EPIC_out/1D_files.txt")
-	elutionProts = set([])
-	for elutionFile in elutionFH:
-		elutionFile = elutionFile.rstrip()
-		elutionData = CS.ElutionData(elutionFile)
-		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
-
-
-
-	#get_cluster_overlapp()
-	gs_cluster_overlapp()
-	sys.exit()
-
-#	ppiF, mappingF, outF = sys.argv[1:]
-#	mapPPI(ppiF, mappingF, outF, elutionProts)
-#	sys.exit()
-
-	netA, netB, netC = sys.argv[1:]
-	netA = readPPIs(netA)
-	netB = readPPIs(netB)
-	netC = readPPIs(netC)
-
-	net_overlap = [len(netA), len(netB), len(netA&netB), len(netC), len(netA&netC), len(netB&netC), len(netA&netB&netC)]
-	venn3([netA, netB, netC], ("STRING", "IntAct", "BIOGRID"))
-	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_net.pdf", bbox_inches="tight")
-	plt.close()
-
-
-
+#	EPIC_cor()
+#	EPICFS_eval()
+#	EPIC_count_fs()
+#	EPIC_eval_fs()
+#	EPIC_eval_fs_DIST()
+	exp_comb()
 
 if __name__ == "__main__":
 	try:

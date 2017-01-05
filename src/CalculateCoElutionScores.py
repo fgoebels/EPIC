@@ -1022,10 +1022,10 @@ class CLF_Wrapper:
 		self.num_cores = num_cores
 		thisCLF = ""
 		if forest:
-#			print("using Random forest")
+			print("using Random forest")
 			thisCLF = RandomForestClassifier(n_estimators=400, n_jobs=self.num_cores)
 		else:	
-#			print("Using SVM")
+			print("Using SVM")
 			thisCLF =  svm.SVC(kernel="linear", probability=True)
 			if useFeatureSelection:
 				self.clf = Pipeline([
@@ -1130,15 +1130,20 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 		for i, prediction in enumerate(pred_class):
 			if prediction == 1:
 				out.append("%s\t%f" % (edges[i], pred_prob[i]))
+	#		out.append("%s\t%f\t%i" % (edges[i], pred_prob[i], prediction))
 		return out
 	out = []
 	tmpscores = np.zeros((100000, data_train.shape[1]))
 	edges = [""]*100000
-	All_score_FH.readline()
+	header = All_score_FH.readline().rstrip().split("\t")
+	print np.array(header[2:])[fs]
 	k = 0
 	chunk_num=1
+	i = 0
+	j = 0
 	for line in All_score_FH:
-		if k % 100000==0:
+		i += 1
+		if k % 100000==0 and k != 0:
 			out.extend(getPredictions(tmpscores, edges, clf))
 			tmpscores = np.zeros((100000, data_train.shape[1]))
 			if verbose:
@@ -1150,17 +1155,21 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 		linesplit = line.split("\t")
 		edge = "\t".join(sorted(linesplit[0:2]))
 		if fs =="":
-			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), ))).reshape(1, -1)
+			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), )))
 		else:
-			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], ))).reshape(1, -1)
+			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], )))
 		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0:
+			edge_scores = edge_scores.reshape(1, -1)
+			j += 1
 			edges[k] = edge
 			tmpscores[k,:] = edge_scores
 			k += 1
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	All_score_FH.close()
 
-	outFH = open(outDir + ".pred.txt", "w")
+	print "lines in all scores %i" % i
+	print "lines > 0.5 in all scores %i" % j
+ 	outFH = open(outDir + ".pred.txt", "w")
 	outFH.write("\n".join(out))
 	outFH.close()
 	return outDir + ".pred.txt", len(out)
@@ -1200,10 +1209,10 @@ def create_goldstandard(target_taxid, valprots):
 	go_p, go_n = go_gs.get_goldstandard()
 
 	all_p = corum_p | intact_p | go_p
-	all_n = corum_n | intact_n | go_n
+	all_n = (corum_n | intact_n | go_n) - all_p
 
 	training_p = corum_p | intact_p - go_p
-	training_n = corum_n | intact_n - go_n
+	training_n = (corum_n | intact_n - go_n) - training_p
 
 	go_complexes = go_gs.complexes
 	corum_complexes = corum_gs.complexes
@@ -1277,6 +1286,7 @@ def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_
 	outFH = open("%s.eval.txt" % (outDir), "w")
 	print >> outFH, line
 	outFH.close()
+	return line
 
 
 def get_eval(scoreCalc, num_cores, useForest=False, folds=3):
