@@ -105,25 +105,33 @@ def make_ref_data():
 	target_taxid, elution_profiles_dir, out_dir = sys.argv[1:]
 	foundprots, elution_datas = CS.load_data(elution_profiles_dir, [])
 
-	training_p, training_n, _, _, go_complexes, corum_complexes = CS.create_goldstandard(target_taxid, foundprots)
-	corum_complexes.write_cuslter_file(out_dir + "/corum.comp.txt")
-	go_complexes.write_cuslter_file(out_dir + "/go.comp.txt")
-	gsFH = open(out_dir + "/gs.txt", "w")
+	training_p, training_n, all_p, all_n, holdout_complexes, training_complexes, all_complexes = CS.create_goldstandard(target_taxid, foundprots)
+	holdout_complexes.write_cuslter_file(out_dir + "/holdout.comp.txt")
+	all_complexes.write_cuslter_file(out_dir + "/all.comp.txt")
+	training_complexes.write_cuslter_file(out_dir + "/training.comp.txt")
+	gsFH = open(out_dir + "/train_gs.txt", "w")
 	for ppi in training_p:
 		print >> gsFH, "%s\tpositive" % ppi
 	for ppi in training_n:
 		print >> gsFH, "%s\tnegative" % ppi
 	gsFH.close()
 
-	scorecalc = CS.CalculateCoElutionScores()
-	topred = scorecalc.getAllPairs_coelutionDatas(elution_datas)
-	predFH = open(out_dir + "/topred.txt", "w")
-	predFH.write("\n".join(topred))
-	predFH.close()
+	gsFH = open(out_dir + "/all_gs.txt", "w")
+	for ppi in all_p:
+		print >> gsFH, "%s\tpositive" % ppi
+	for ppi in all_n:
+		print >> gsFH, "%s\tnegative" % ppi
+	gsFH.close()
+
+#	scorecalc = CS.CalculateCoElutionScores()
+#	topred = scorecalc.getAllPairs_coelutionDatas(elution_datas)
+#	predFH = open(out_dir + "/topred.txt", "w")
+#	predFH.write("\n".join(topred))
+#	predFH.close()
 
 
 def benchmark():
-	feature_combination, use_random_forest, number_of_cores, gsF, corumF, goF, evalF, all_scoreF, outDir = sys.argv[1:]
+	feature_combination, use_random_forest, number_of_cores, gs_train_F, gs_all_F, trainingF, holdoutF, allF, eval_scoreF, all_scoreF, outDir = sys.argv[1:]
 	if feature_combination == "00000000": sys.exit()
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	this_scores = []
@@ -135,37 +143,66 @@ def benchmark():
 
 #	foundprots, elution_datas = CS.load_data(data_dir, this_scores)
 
-	go_complexes = GS.Clusters(False)
-	go_complexes.read_file(goF)
+	holdout_comp = GS.Clusters(False)
+	holdout_comp.read_file(holdoutF)
 
-	corum_complexes = GS.Clusters(False)
-	corum_complexes.read_file(corumF)
+	train_comp = GS.Clusters(False)
+	train_comp.read_file(trainingF)
 
-	gs = GS.Goldstandard_from_reference_File(gsF)
-	training_p, training_n = gs.goldstandard_positive, gs.goldstandard_negative
-	print "Done loading gs"
+	all_comp = GS.Clusters(False)
+	all_comp.read_file(allF)
 
-#	Use precalcutaed files since cinet as no internet acces on computational nodes
-#	evals = CS.create_goldstandard("6239", foundprots)
-#	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
+	train_gs = GS.Goldstandard_from_reference_File(gs_train_F)
+	training_p, training_n = train_gs.goldstandard_positive, train_gs.goldstandard_negative
 
-	print all_scoreF
-	scoreCalc, scores_to_keep = readTable(this_scores, evalF, gs = training_p | training_n)
-	scoreCalc.addLabels(training_p, training_n)
+	all_gs = GS.Goldstandard_from_reference_File(gs_all_F)
+	all_p, all_n = all_gs.goldstandard_positive, all_gs.goldstandard_negative
+
+	header = ""
+	line = ""
+
+	make_predictions(this_scores, eval_scoreF, all_scoreF, training_p,  training_n, number_of_cores, use_random_forest, outDir + ".train")
+
+	tmp_line, tmp_head = CS.clustering_evaluation(train_comp, "Train", outDir + ".train")
+	train_num_ppis = CS.lineCount(outDir + ".train.pred.txt")
+	train_num_comp = CS.lineCount(outDir + ".train.clust.txt")
+	line += "%i\t%i" % (train_num_ppis, train_num_comp)
+	header += "Train num pred PPIs\tTrain num pred clust"
+	line += "\t" + tmp_line
+	header += "\t" + tmp_head
+	tmp_line, tmp_head = CS.clustering_evaluation(holdout_comp, "Holdout", outDir + ".train")
+	line += "\t" + tmp_line
+	header += "\t" + tmp_head
+
+
+	make_predictions(this_scores, eval_scoreF, all_scoreF, all_p,  all_n, number_of_cores, use_random_forest, outDir + ".all")
+	tmp_line, tmp_head = CS.clustering_evaluation(all_comp, "All", outDir + ".all")
+	all_num_ppis = CS.lineCount(outDir + ".all.pred.txt")
+	all_num_comp = CS.lineCount(outDir + ".all.clust.txt")
+	line += "\t%i\t%i" % (all_num_ppis, all_num_comp)
+	header += "\tAll num pred PPIs\tAll num pred clust"
+	line += "\t" + tmp_line
+	header += "\t" + tmp_head
+
+
+
+	outFH = open(outDir + ".eval.txt", "w")
+	print >> outFH, line
+	outFH.close()
+	line = line.split("\t")
+	header = header.split("\t")
+	for i in range(len(line)):
+		print "%s\t%s" % (header[i], line[i])
+
+def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, outDir):
+	scoreCalc, scores_to_keep = readTable(fc, train_scoreF, gs=(pos | neg))
+	scoreCalc.addLabels(pos, neg)
 	scoreCalc.rebalance(ratio=5)
-	print len(scoreCalc.positive)
-	print len(scoreCalc.negative)
-	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
-	print data_train.shape
-	CS.predictInteractions(scoreCalc, outDir , use_random_forest, number_of_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+	CS.predictInteractions(scoreCalc, outDir , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
 	predF = "%s.pred.txt" % (outDir)
-#	predF = "/Users/florian/workspace/scratch/EPIC_out/MaxQ_MS1_MS2.pred.positive.txt"
 	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	os.system(clustering_CMD)
 
-#	scoreCalc.addLabels(training_p, training_n)
-#	CS.bench_scores(scoreCalc, outDir, number_of_cores, useForest=use_random_forest)
-	CS.clustering_evaluation([training_p, training_n, go_complexes, corum_complexes], scoreCalc, outDir, ",".join([score.name for score in this_scores]), number_of_cores, use_random_forest)
 
 
 def main():

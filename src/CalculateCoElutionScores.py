@@ -1190,34 +1190,35 @@ def load_data(data_dir, scores):
 	return elutionProts, elutionDatas
 
 def create_goldstandard(target_taxid, valprots):
-	def create_gs_set(cluster_obj, target_taxid, name, valprots):
+	def create_gs_set(cluster_obj, orthmap, name, valprots):
 		gs =  GS.Goldstandard_from_Complexes(name)
-		gs.make_reference_data(cluster_obj, target_taxid, found_prots=valprots)
+		gs.make_reference_data(cluster_obj, orthmap, found_prots=valprots)
 		return gs
 
+	orthmap = ""
+	if target_taxid !="9606": orthmap = GS.Inparanoid(taxid=target_taxid)
+
 	# Create gold standard from CORUM
-	corum_gs = create_gs_set(GS.CORUM(), target_taxid, "CORUM", valprots)
+	training_gs = create_gs_set([GS.CORUM(), GS.Intact_clusters()], orthmap, "Training", valprots)
 
 	# Create gold standard from GO
-	go_gs = create_gs_set(GS.QuickGO(target_taxid), target_taxid, "GO", valprots)
+	holdout_gs = create_gs_set([GS.QuickGO(target_taxid)], "", "Holdout", valprots)
 
 	#Create gold stnadard from Intact
-	intact_gs = create_gs_set(GS.Intact_clusters(), target_taxid, "Intact", valprots)
+	all_gs = create_gs_set([GS.Intact_clusters(), GS.CORUM(), GS.QuickGO(target_taxid)], orthmap, "All", valprots)
 
-	corum_p, corum_n = corum_gs.get_goldstandard()
-	intact_p, intact_n = intact_gs.get_goldstandard()
-	go_p, go_n = go_gs.get_goldstandard()
+	training_p, training_n = training_gs.get_goldstandard()
+	all_p, all_n = all_gs.get_goldstandard()
+	holdout_p, holdout_n = holdout_gs.get_goldstandard()
 
-	all_p = corum_p | intact_p | go_p
-	all_n = (corum_n | intact_n | go_n) - all_p
+	training_p =  training_p - (holdout_p | holdout_n)
+	training_n =  training_n - (holdout_p | holdout_n)
 
-	training_p = corum_p | intact_p - go_p
-	training_n = (corum_n | intact_n - go_n) - training_p
+	training_complexes = training_gs.complexes
+	holdout_complexes = holdout_gs.complexes
+	all_complexes = all_gs.complexes
 
-	go_complexes = go_gs.complexes
-	corum_complexes = corum_gs.complexes
-
-	return training_p, training_n, all_p, all_n, go_complexes, corum_complexes
+	return training_p, training_n, all_p, all_n, holdout_complexes, training_complexes, all_complexes
 
 
 
@@ -1253,40 +1254,19 @@ def main():
 	predictInteractions(scoreCalc, out_dir, use_rf, num_cores)
 	clustering_evaluation(evals, scoreCalc, out_dir, ",".join([score.name for score in this_scores]), num_cores, use_rf)
 
-def clustering_evaluation(evals, scoreCalc, outDir, feature_combination, number_of_cores, use_random_forest):
-	_, _, go_complexes, corum_complexes = evals
-	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
-	print data.shape
-	num_training_ppi = data.shape[0]
-	data = np.array(data)
-	clf = CLF_Wrapper(data, targets, num_cores=number_of_cores, forest=use_random_forest, folds=3,
-						 useFeatureSelection=False)
-	eval_scores = clf.getValScores()
-	predF = "%s.pred.txt" % (outDir)
-	predicted_ppis = lineCount(predF)
+def clustering_evaluation(eval_comp, prefix, outDir):
+
+	head = "\t".join(["%s %s" % (prefix, h) for h in ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy", "sep"]])
+
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
 	pred_clusters.read_file("%s.clust.txt" % (outDir))
-	print len(pred_clusters.complexes)
+
 	pred_clusters.filter_complexes()
-	print len(pred_clusters.complexes)
 	pred_clusters.merge_complexes()
 	pred_clusters.filter_complexes()
-	print len(pred_clusters.complexes)
 
-	pred_clusters = pred_clusters
-	corum_scores = "\t".join(map(str, pred_clusters.clus_eval(corum_complexes)))
-	go_scores = "\t".join(map(str, pred_clusters.clus_eval(go_complexes)))
-	line = "%s\t%i\t%s\t%i\t%i\t%s\t%s" % (
-		feature_combination, num_training_ppi, "\t".join(map(str, eval_scores)), predicted_ppis,
-		len(pred_clusters.complexes), corum_scores, go_scores)
-	linesplit = line.split("\t")
-	for i, cat in enumerate(["Features", "PPi in training set", "Precision", "Recall", "F-measure", "auPR", "auROC", "Num predicted PPIs", "Num predicted clusters", "CORUM mmr", "CORUM overlapp", "CORUM simcoe", "CORUM mean_simcoe_overlap", "CORUM sensetivity", "CORUM ppv", "CORUM accuracy", "CORUM sep", "GO mmr", "GO overlapp", "GO simcoe", "GO mean_simcoe_overlap", "GO sensetivity", "GO ppv", "GO accuracy", "GO sep"]):
-		print "%s\t\t%s" % (cat, linesplit[i])
-
-	outFH = open("%s.eval.txt" % (outDir), "w")
-	print >> outFH, line
-	outFH.close()
-	return line
+	cluster_scores = "\t".join(map(str, pred_clusters.clus_eval(eval_comp)))
+	return cluster_scores, head
 
 
 def get_eval(scoreCalc, num_cores, useForest=False, folds=3):
@@ -1308,13 +1288,13 @@ def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=3):
 	pr, roc = get_eval(scoreCalc, num_cores, useForest, folds)
 	pr_curves.append(("Combined", pr))
 	roc_curves.append(("Coxmbined", roc))
-	plotCurves(pr_curves, outDir + ".pr.png", "Recall", "Precision")
-	plotCurves(roc_curves, outDir + ".roc.png", "False Positive rate", "True Positive Rate")
+	plotCurves(pr_curves, outDir + ".pr.pdf", "Recall", "Precision")
+	plotCurves(roc_curves, outDir + ".roc.pdf", "False Positive rate", "True Positive Rate")
 	recall, precision, threshold = pr
 	threshold = np.append(threshold, 1)
 	cutoff_curves.append(("Precision", (precision, threshold)))
 	cutoff_curves.append(("Recall", (recall, threshold)))
-	plotCurves(cutoff_curves, outDir + ".cutoff.png", "Cutoff", "Evaluation metric score")
+	plotCurves(cutoff_curves, outDir + ".cutoff.pdf", "Cutoff", "Evaluation metric score")
 
 
 if __name__ == "__main__":

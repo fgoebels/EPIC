@@ -11,7 +11,7 @@ import sys
 
 
 class Goldstandard_from_PPIs():
-	def __init__(self, refF, found_ppis=""):
+	def __init__(self, refF):
 		self.goldstandard_positive = set([])
 		self.goldstandard_negative = set([])
 		allprots = set([])
@@ -30,7 +30,6 @@ class Goldstandard_from_PPIs():
 			for j in range(i+1, len(allprots)):
 				prot_j = allprots[j]
 				edge = "\t".join(sorted([prot_i, prot_j]))
-				if edge not in found_ppis: continue
 				if edge in self.goldstandard_positive: continue
 				self.goldstandard_negative.add(edge)
 
@@ -79,22 +78,29 @@ class Goldstandard_from_Complexes():
 		self.name = name
 		self.goldstandard_positive, self.goldstandard_negative = set([]), set([])
 
-	def make_reference_data(self, db_clusters, target_taxid, found_prots=""):
-		print "Processing %s reference data with %i complexes" % (self.name, len(db_clusters.get_complexes().complexes))
+	def make_reference_data(self, db_clusters, orthmap="", found_prots=""):
 
-		self.complexes = copy.deepcopy(db_clusters.get_complexes())
+		self.complexes = Clusters(False)
+		total_complexes = 0
+
+		for db_clust in db_clusters:
+			tmp_clust = copy.deepcopy(db_clust.get_complexes())
+			total_complexes += len(tmp_clust.complexes.keys())
+			if tmp_clust.need_to_be_mapped == True:
+				orthmap.mapComplexes(tmp_clust)
+			for compl in tmp_clust.complexes:
+				self.complexes.addComplex(compl, tmp_clust.complexes[compl])
+
+		print "Total number of complexes %i in %s" % (total_complexes, self.name)
+		print "Number of complexes after ortholog mapping %i complexes in %s" % (len(self.complexes.complexes), self.name)
+
+
 		self.complexes.filter_complexes()
 		print "After size filtering %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
 		self.complexes.merge_complexes()
 		self.complexes.filter_complexes()
 		print "After mergning %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
-
-		if self.complexes.need_to_be_mapped == True and target_taxid != "9606":
-			inparanoid = Inparanoid(target_taxid)
-			inparanoid.mapComplexes(self.complexes)
-			self.complexes.filter_complexes()
-			print "After mapping %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
 		if found_prots != "":
 			self.complexes.remove_proteins(found_prots)
@@ -112,17 +118,17 @@ class Goldstandard_from_Complexes():
 
 class Intact_clusters():
 
-	def __init__(self):
+	def __init__(self, species = "homo_sapiens"):
 		self.complexes = Clusters(need_to_be_mapped=True)
 		self.need_to_be_mapped = True
-		self.load_data()
+		self.load_data(species)
 
 
 	def get_complexes(self):
 		return self.complexes
 
-	def load_data(self):
-		intact_url = "ftp://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/homo_sapiens.tsv"
+	def load_data(self, species):
+		intact_url = "ftp://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/%s.tsv" % species
 		intact_url_FH = urllib2.urlopen(intact_url)
 		intact_url_FH.readline()
 		i = 0
@@ -185,7 +191,7 @@ class CORUM():
 
 class Clusters():
 
-	def __init__(self, need_to_be_mapped, overlap_cutoff = 0.8, lb = 2, ub = 50):
+	def __init__(self, need_to_be_mapped, overlap_cutoff = 0.8, lb = 3, ub = 50):
 		self.complexes = {}
 		self.overlap_cutoff = overlap_cutoff
 		self.ub = ub
@@ -414,16 +420,17 @@ class QuickGO():
 	#		taxid of species that go annotation should be downloaded
 	def __init__(self, taxid):
 		self.taxid = taxid
-		self.godir = os.sep.join(os.path.abspath(__file__).split(os.sep)[:-2]) + os.sep + "go_files" + os.sep +"%s.go"
-		self.go_to_prot_map = {}
-		self.prot_to_go_map = {}
+		self.complexes = Clusters(need_to_be_mapped=False)
 		self.get_GO_complexes()
+
 
 	# @author Florian Goebels
 	# reads in go flat file if gaf 20 format as protein to go annotation mapping (as dictonary)
 	# @param
 	#		taxid species for which go annotation should be read into memory
 	def get_GO_complexes(self):
+		go_to_prot_map = {}
+		prot_to_go_map = {}
 		quickgoURL = "http://www.ebi.ac.uk/QuickGO/GAnnotation?goid=GO:0043234&tax=%s&format=tsv&limit=1000000000&evidence=IDA,IPI,EXP" % (self.taxid)
 		quickgoURL_FH = urllib2.urlopen(quickgoURL)
 		quickgoURL_FH.readline()
@@ -433,34 +440,23 @@ class QuickGO():
 			prot = linesplit[1]
 			go_complex = linesplit[6]
 			# Adding prot to go map
-			if prot not in self.prot_to_go_map: self.prot_to_go_map[prot] = set([])
-			self.prot_to_go_map[prot].add(go_complex)
+			if prot not in prot_to_go_map: prot_to_go_map[prot] = set([])
+			prot_to_go_map[prot].add(go_complex)
 			# Adding go to prot map
-			if go_complex not in self.go_to_prot_map: self.go_to_prot_map[go_complex] = set([])
-			self.go_to_prot_map[go_complex].add(prot)
+			if go_complex not in go_to_prot_map: go_to_prot_map[go_complex] = set([])
+			go_to_prot_map[go_complex].add(prot)
 
 		quickgoURL_FH.close()
+		i = 0
+		for go_complex in go_to_prot_map:
+			self.complexes.addComplex(i, go_to_prot_map[go_complex])
+			i+=1
 
 	def get_complexes(self):
-		out = Clusters(need_to_be_mapped=False)
-		i = 0
-		for go_complex in self.go_to_prot_map:
-			out.addComplex(i, self.go_to_prot_map[go_complex])
-			i+=1
-		return out
+		return self.complexes
 
-	# @author Florian Goebels
-	# automaticallys downloads go anntotation for a given tax id
-	# TODO create switch to select which level of go annotaiton
-	# @param
-	#		taxid species for which go annotation should be downloaded
-	def getGO(self, taxid):
-		quickgoURL = "http://www.ebi.ac.uk/QuickGO/GAnnotation?goid=GO:0043234&tax=6239&format=tsv&limit=1000000000&evidence=IDA,IPI,EXP"
 
-#		quickgoURL = "http://ww	w.ebi.ac.uk/QuickGO/GAnnotation?tax=%s&format=gaf&limit=1000000000&evidence=IMP,CIGI,CIPI,CIDA,CIEP,CEXP,CISS,CNAS,CTAS,CND,CIC,CRCA,CIBA,CIBD,CIKR,CIRD,CISA,CISM,CISO,CIGC"
-#		wget.download(quickgoURL % (taxid), self.godir % ( taxid))
-		
-		
+
 # @author Florian Goebels
 # Class for handling and getting data from INPARANOID http://inparanoid.sbc.su.se/cgi-bin/index.cgi
 class Inparanoid():
@@ -473,12 +469,14 @@ class Inparanoid():
 	#		foundProts list of proteins that were found in the MS experiments. If given, in cases of uncertain ortholog mapping (e.g. more than one mapping if inparanoid score == 1), ortholog mappings to found prots are prefered
 	def __init__(self, taxid, inparanoid_cutoff=1, foundProts = set([])):
 		self.taxid2Name = self.getTaxId2Namemapping()
-		self.species = self.taxid2Name[taxid]
 		self.inparanoid_cutoff = inparanoid_cutoff
 		self.foundProts = foundProts
-
-		xmldoc = self.getXML()
-		self.orthmap, self.orthgroups = self.parseXML(xmldoc)
+		if taxid in self.taxid2Name:
+			self.species = self.taxid2Name[taxid]
+			xmldoc = self.getXML()
+			self.orthmap, self.orthgroups = self.parseXML(xmldoc)
+		else:
+			print "Taxid:%s not supported" % taxid
 
 	# @author Florian Goebels
 	# mappes protein interactions to their respectiv ortholog counterpart
@@ -499,6 +497,8 @@ class Inparanoid():
 			for prot in clusters.complexes[clust]:
 				if prot in self.orthmap:
 					mapped_members.add(self.orthmap[prot])
+#				else:
+#					print "No map for %s" % prot
 			clusters.complexes[clust] = mapped_members
 
 	# @author Florian Goebels
@@ -568,3 +568,44 @@ class Inparanoid():
 		xml_str = urllib2.urlopen(url_str).read()
 		xmldoc = minidom.parseString(xml_str)
 		return xmldoc
+
+	def readTable(self, tableF):
+		tableFH = open(tableF)
+		targetGenes = set([])
+		orthgroups = []
+		def getids(ids_raw):
+			out = []
+			for i in range(int(len(ids_raw)/2)):
+				this_id = ids_raw[i*2]
+				this_score = float(ids_raw[(i*2)+1])
+
+				if this_score < self.inparanoid_cutoff:continue
+				out.append(this_id[0:6])
+			return out
+		tableFH.readline()
+		for line in tableFH:
+			orthID, score, target_orth, source_orth = line.rstrip().split("\t")
+			targetids = getids(target_orth.split())
+			sourceids = getids(source_orth.split())
+			group = []
+			group.extend(targetids)
+			group.extend(sourceids)
+			orthgroups.append(set(group))
+			targetGenes |= set(targetids)
+		tableFH.close()
+
+		if len(self.foundProts) != 0:
+			toDel = targetGenes - self.foundProts
+			for i in range(len(orthgroups)):
+				orthgroups[i] = orthgroups[i] - toDel
+		outmap = {}
+		outgroups = []
+		for orthgroup in orthgroups:
+			if len(orthgroup) == 2:
+				protA, protB = orthgroup
+				if protA in targetGenes:
+					outmap[protB] = protA
+				else:
+					outmap[protA] = protB
+				outgroups.append(orthgroup)
+		self.orthmap, self.orthgroups =  outmap, outgroups
