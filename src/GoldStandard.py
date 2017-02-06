@@ -86,7 +86,7 @@ class Goldstandard_from_Complexes():
 		for db_clust in db_clusters:
 			tmp_clust = copy.deepcopy(db_clust.get_complexes())
 			total_complexes += len(tmp_clust.complexes.keys())
-			if tmp_clust.need_to_be_mapped == True:
+			if tmp_clust.need_to_be_mapped == True and orthmap !="":
 				orthmap.mapComplexes(tmp_clust)
 			for compl in tmp_clust.complexes:
 				self.complexes.addComplex(compl, tmp_clust.complexes[compl])
@@ -136,9 +136,11 @@ class Intact_clusters():
 			line = line.rstrip()
 			linesplit = line.split("\t")
 			evidence = linesplit[5]
-			if not evidence.startswith("ECO:0000353") or not evidence.startswith("ECO:0000353"): continue
+			if not evidence.startswith("ECO:0000353"): continue
 			members = linesplit[4]
 			members = re.sub("\(\d+\)", "", members)
+			members = re.sub("-\d+", "", members)
+			members = re.sub("-PRO_\d+", "", members)
 			members = set(members.split("|"))
 			self.complexes.addComplex(i, members)
 			i += 1
@@ -580,7 +582,7 @@ class Inparanoid():
 				this_score = float(ids_raw[(i*2)+1])
 
 				if this_score < self.inparanoid_cutoff:continue
-				out.append(this_id[0:6])
+				out.append(this_id)
 			return out
 		tableFH.readline()
 		for line in tableFH:

@@ -11,7 +11,7 @@ import numpy as np
 import sys
 import os, math
 from matplotlib import pyplot as plt
-#from matplotlib_venn import venn3
+from matplotlib_venn import venn3
 import glob
 import random as re
 import fs as fs
@@ -70,6 +70,28 @@ def get_cluster_overlapp():
 	outFH = open(outF, "w")
 	print >> outFH, out
 	outFH.close()
+
+def reza_overlap():
+	dataF = "/Users/florian/workspace/mouseMap/data/MOUSE/proteinGroups_BRAIN_SC_modified.txt"
+	tmt = ["HS", "LS", "161115_L", "161115_S"]
+	for j,i in enumerate([[1,2,3],[4,5,6],[7,8,9],[10,11,12]]):
+		dataFH = open(dataF)
+		dataFH.readline()
+		prots = [set([]), set([]), set([])]
+		for line in dataFH:
+			line = np.array(line.rstrip().split("\t"))
+			id = line[0]
+			cyt, mem, neu = line[i]
+			if float(cyt) > 1: prots[0].add(id)
+			if float(mem) > 1: prots[1].add(id)
+			if float(neu) > 1: prots[2].add(id)
+		dataFH.close()
+		venn3(prots, ("Cytosolic", "Membrane", "Nucleus"))
+		plt.title(tmt[j], fontsize=14)
+		plt.savefig("/Users/florian/workspace/scratch/%s.pdf" % tmt[j], bbox_inches="tight")
+		plt.close()
+
+
 
 def gs_cluster_overlapp():
 	elutionFH = open("/Users/florian/workspace/scratch/EPIC_out/1D_files.txt")
@@ -452,12 +474,77 @@ def exp_comb():
 	print >> outFH, "\n".join(out_lines)
 	outFH.close()
 
-def bac_EPIC():
-	elutionFile, inparanoid_file, cluster_file, cluster_map_file = sys.argv[1:]
+def count_enrichments():
+	dir = "/Users/florian/workspace/HuRI/output/"
+	files = ["cofraccomplexes.go_enrichment.txt", "bioplexcomplexes.go_enrichment.txt", "C1_CoFrac_clust.go_enrichment.txt", "C1_Bioplex_clust.go_enrichment.txt", "C1_UNION_QBC_clust.go_enrichment.txt"]
+	names = ["cofrac", "bioplex", "C1_cofrac", "C1_bioplex", "C1_union"]
+	labels = {"BP": 1, "MF": 2, "CC": 3}
+	outF = sys.argv[1]
+	out = []
+	for i, file in enumerate(files):
+		out_c = np.array([0, 0, 0,0])
+		all_counts = []
+		name = names[i]
+		num_comp = CS.lineCount(dir+file)
+		inFH = open(dir+file)
+		for line in inFH:
+			line = line.split("\t")
+			size = len(line[0].split(";"))
+			if size < 3: continue
+#			if size > 7: size = "7+"
+#			size = str(size)
+			go_counts = []
 
+			for label in labels:
+				index = labels[label]
+				counts = len(line[index].split(";"))
+				out.append("%s\t%s\t%f" % (name, label, counts/size))
+				out_c[index] += counts
+		print(file + "\t" + "\t".join(map(str,out_c[1:]/num_comp)))
+		inFH.close()
+
+	outFH = open(outF, 'w')
+	print >> outFH, "Clusters\tGO category\tvalue"
+	print >> outFH, "\n".join(out)
+	outFH.close()
+
+def orthmap_complexes():
+	compF, mapF, outF = sys.argv[1:]
+	comps = GS.Clusters(False)
+	comps.read_file(compF)
+	print len(comps.complexes)
+
+	cluster_map = {}
+	cluster_mapFH = open(mapF)
+	for line in cluster_mapFH:
+		line = line.rstrip()
+		protid, compid = line.split("\t")
+		cluster_map[compid] = protid
+	cluster_mapFH.close()
+
+	for cluster in comps.complexes:
+		new_ids = set([])
+		for cluster_id in  comps.complexes[cluster]:
+			if cluster_id in cluster_map:
+				protid = cluster_map[cluster_id]
+				new_ids.add(protid)
+			else:
+				print "No map for %s" % cluster_id
+		comps.complexes[cluster] = new_ids
+	outFH = open(outF, "w")
+	print >> outFH, comps.to_string()
+	outFH.close()
+
+
+
+def bac_EPIC():
+	elutionFile, inparanoid_file, cluster_file, cluster_map_file, outDir = sys.argv[1:]
+
+	scores = [CS.Wcc(), CS.MutualInformation(), CS.Poisson(5), CS.Jaccard(), CS.Apex()]
 	eData = CS.ElutionData(elutionFile)
+	for s in scores: s.init(eData)
 	foundprots = set(eData.prot2Index.keys())
-	orthmapper = GS.Inparanoid(taxid="NA", inparanoid_cutoff=0.95, foundProts=foundprots)
+	orthmapper = GS.Inparanoid(taxid="NA", inparanoid_cutoff=0.95, foundProts="")
 	orthmapper.readTable(inparanoid_file)
 	ecocyc_compl = GS.Clusters(need_to_be_mapped=True)
 	ecocyc_compl.read_file(cluster_file)
@@ -496,11 +583,28 @@ def bac_EPIC():
 
 	gs_p, gs_n = ecocyc_compl.getPositiveAndNegativeInteractions()
 
-	gs = GS.Goldstandard_from_Complexes("Intact")
-	gs.make_reference_data(GS.Intact_clusters(species="escherichia_coli"), orthmapper, found_prots=foundprots)
+	print len(gs_p)
+	print len(gs_n)
+	print gs_p
 
-	gs = GS.Goldstandard_from_Complexes("GO")
-	gs.make_reference_data(GS.QuickGO(taxid="83333"), orthmapper, found_prots=foundprots)
+	scoreCalc = CS.CalculateCoElutionScores()
+	scoreCalc.positive = gs_p
+	scoreCalc.negative = gs_n
+	scoreCalc.readTable(outDir + ".scores.txt")
+	scoreCalc.rebalance()
+	print scoreCalc.scores.shape
+#	scoreCalc.calculate_coelutionDatas([eData], scores, outDir, 4)
+	CS.bench_scores(scoreCalc, outDir, 4, useForest=True)
+
+	CS.predictInteractions(scoreCalc, outDir, True, 4, scoreF="", verbose=True, fs="", score_cutoff=0)
+	predF = "%s.pred.txt" % (outDir)
+	clustering_CMD = "java -jar cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+	print(clustering_CMD)
+	os.system(clustering_CMD)
+
+#	gs = GS.Goldstandard_from_Complexes("Intact")
+#	gs.make_reference_data([GS.Intact_clusters(species="escherichia_coli"), GS.QuickGO(taxid="83333")], orthmapper, found_prots=foundprots)
+
 
 
 
@@ -512,22 +616,31 @@ def main():
 #	EPIC_eval_fs_DIST()
 #	exp_comb()
 #	bac_EPIC()
+#	orthmap_complexes()
+#	count_enrichments()
+	reza_overlap()
+	sys.exit()
 
-	foundprots, elution_datas = CS.load_data("/Users/florian//workspace/scratch/EPIC_out/input/elution_profiles/MSB", [])
+#	foundprots, elution_datas = CS.load_data("/Users/florian//workspace/scratch/EPIC_out/input/elution_profiles/MSB", [])
+#	corum = GS.CORUM()
+	for name, comp_ref in [("corum", GS.CORUM()), ("intact", GS.Intact_clusters()), ("go", GS.QuickGO("9606"))]:
+		comp_ref.need_to_be_mapped = False
+		outFH = open("/Users/florian/workspace/scratch/EPIC_out/%s.raw.comp.txt" % name, "w")
+		print >> outFH, comp_ref.get_complexes().to_string()
+		outFH.close()
+		gs =  GS.Goldstandard_from_Complexes(name)
+		gs.make_reference_data([comp_ref], "", found_prots="")
+		outFH = open("/Users/florian/workspace/scratch/EPIC_out/%s.processed.comp.txt" % name, "w")
+		print >> outFH, gs.complexes.to_string()
+		outFH.close()
 
-	_, _, _, _, go_complexes, corum_complexes, intact_complexes	= CS.create_goldstandard("6239",foundprots)
-	outFH = open("/Users/florian/workspace/scratch/EPIC_out/go.comp.txt", "w")
-	print >> outFH, go_complexes.to_string()
+	_, _, _, _, _, _, all_comp	= CS.create_goldstandard("9606","")
+
+
+	outFH = open("/Users/florian/workspace/scratch/EPIC_out/combined.comp.txt", "w")
+	print >> outFH, all_comp.to_string()
 	outFH.close()
 
-	outFH = open("/Users/florian/workspace/scratch/EPIC_out/corum.comp.txt", "w")
-	print >> outFH, corum_complexes.to_string()
-	outFH.close()
-
-
-	outFH = open("/Users/florian/workspace/scratch/EPIC_out/intact.comp.txt", "w")
-	print >> outFH, intact_complexes.to_string()
-	outFH.close()
 
 
 if __name__ == "__main__":

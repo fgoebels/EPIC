@@ -761,7 +761,7 @@ class CalculateCoElutionScores():
 		dim = self.scores.shape
 		for i in range(dim[0]):
 			for j in range(dim[1]):
-				if self.scores[i][j] > 0.5:
+				if self.scores[i][j] > score_cutoff:
 					valid_rows.append(i)
 					break
 #		valid_rows = list(set(np.where(self.scores>score_cutoff)[0]))
@@ -1115,7 +1115,7 @@ def plotCurves(curves, outF, xlab, ylab):
 
 # @author Florian Goebels
 def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= "", score_cutoff=0.5):
-	if scoreF =="": outDir + ".scores.txt"
+	if scoreF =="": scoreF = outDir + ".scores.txt"
 	All_score_FH = open(scoreF)
 
 
@@ -1136,7 +1136,7 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 	tmpscores = np.zeros((100000, data_train.shape[1]))
 	edges = [""]*100000
 	header = All_score_FH.readline().rstrip().split("\t")
-	print np.array(header[2:])[fs]
+	if fs != "": print np.array(header[2:])[fs]
 	k = 0
 	chunk_num=1
 	i = 0
