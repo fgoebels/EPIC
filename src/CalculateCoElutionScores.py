@@ -533,18 +533,17 @@ class Genemania:
 	
 	def __init__(self, taxID):
 		self.taxoID = taxID
-
 		#create a protein_pair_mapping dictionary, GeneManiaName - UniProtName
 		self.nameMappingDict = {}
-
 		#create a geneName mapping dictionary based on Uniprot website database
 		self.map_proteinNames()
-
 		# Get all Genemania files
 		self.files = []
 		self.catchFile()
 		# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" and "Predicted" to eliminate circularity
 		self.functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Shared']
+		# ScoreCalc object contains edges and it's associated GeneMANIA scores
+		self.scoreCalc = CalculateCoElutionScores()
 		# loads all of Worm Gene
 		self.load_genemania()
 
@@ -588,13 +587,15 @@ class Genemania:
 	# @author: Lucas Ming Hu
 	# returns Functional anotation scores as a CalculateCoElutionScores Object
 	def load_genemania(self):
-		self.scores = {}
+
+#		data holders
+		scores = {}
 		self.header = []
 		# read online database - by species taxoID
 
 		for i, f_evidence in enumerate(self.functionalEvidences):
 			this_evidence_scores = {}
-			self.header.append("GeneMania_%s" % f_evidence)
+			self.scoreCalc.header.append("GeneMania_%s" % f_evidence)
 			for fp in self.files:
 				filename = str(fp.split('/')[-1])
 				if filename.startswith(f_evidence):
@@ -625,8 +626,18 @@ class Genemania:
 			for edge in this_evidence_scores:
 				score, counts = this_evidence_scores[edge]
 				avg_score = score/counts
-				if edge not in self.scores: self.scores[edge] = [0]*len(self.functionalEvidences)
-				self.scores[edge][i] = avg_score
+				if edge not in scores: scores[edge] = [0]*len(self.functionalEvidences)
+				scores[edge][i] = avg_score
+
+			self.scoreCalc.scores = np.zeros((len(scores.keys()), len(self.functionalEvidences)))
+			i = 0
+			for edge in scores:
+				self.scoreCalc.ppiToIndex[edge] = i
+				self.scoreCalc.IndexToPpi[i] = edge
+				self.scoreCalc.scores[i,:] = scores[edge]
+
+	def getScoreCalc(self):
+		return self.scoreCalc
 
 
 	# @author: Lucas Ming Hu
@@ -731,8 +742,18 @@ class CalculateCoElutionScores():
 	# this method combines who CalculateCoElutionScores objects unto one by comping the toMerge object into the self object
 	# @Param:
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined tiwth self object
-	def merge_singe_ScoreCalc(self, toMerge):
-		allPPIs = set(self.ppiToIndex.keys()) | set(toMerge.ppiToIndex.keys())
+	#		mode donates how to merge the sets, left, right, union, or intersect
+	def merge_singe_ScoreCalc(self, toMerge, mode):
+		allPPIs = ""
+		if mode == "u":
+			allPPIs = set(self.ppiToIndex.keys()) | set(toMerge.ppiToIndex.keys())
+		if mode == "l":
+			allPPIs = set(self.ppiToIndex.keys())
+		if mode == "r":
+			allPPIs = set(toMerge.ppiToIndex.keys())
+		if mode == "i":
+			allPPIs = set(self.ppiToIndex.keys()) & set(toMerge.ppiToIndex.keys())
+
 		numFeature_in_merge = len(toMerge.header)-2
 		numFeature_in_self = len(self.header)-2
 		new_scores = np.zeros((len(allPPIs), numFeature_in_merge+numFeature_in_self))
@@ -1114,7 +1135,7 @@ def plotCurves(curves, outF, xlab, ylab):
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
 # @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= "", score_cutoff=0.5):
+def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= "", fun_anno_toadd="", score_cutoff=0.5):
 	if scoreF =="": scoreF = outDir + ".scores.txt"
 	All_score_FH = open(scoreF)
 
@@ -1133,7 +1154,7 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 	#		out.append("%s\t%f\t%i" % (edges[i], pred_prob[i], prediction))
 		return out
 	out = []
-	tmpscores = np.zeros((100000, data_train.shape[1]))
+	tmpscores = np.zeros((100000, data_train.shape[1])) # add FA scores to column number
 	edges = [""]*100000
 	header = All_score_FH.readline().rstrip().split("\t")
 	if fs != "": print np.array(header[2:])[fs]
@@ -1158,6 +1179,15 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), )))
 		else:
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], )))
+
+		#adding functional annotation to predict scores if functional annotation is available
+		if fun_anno_toadd!="":
+			scores = [0]*(len(fun_anno_toadd.header)-2)
+			if edge in fun_anno_toadd.ppiToIndex:
+				scores = fun_anno_toadd.scores[fun_anno_toadd.ppiToIndex[edge],:]
+			edge_scores = np.append(edge_scores, scores)
+
+		# edge_scores = edge_scores + fa_scores
 		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0:
 			edge_scores = edge_scores.reshape(1, -1)
 			j += 1
@@ -1172,7 +1202,7 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
  	outFH = open(outDir + ".pred.txt", "w")
 	outFH.write("\n".join(out))
 	outFH.close()
-	return outDir + ".pred.txt", len(out)
+	return outDir + ".pred.txt", len(out) # cahnge output so it also returns the network
 
 
 def load_data(data_dir, scores):

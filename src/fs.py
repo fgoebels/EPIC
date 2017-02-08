@@ -161,18 +161,29 @@ def benchmark():
 	header = ""
 	line = ""
 
-	make_predictions(this_scores, eval_scoreF, all_scoreF, training_p,  training_n, number_of_cores, use_random_forest, outDir + ".train")
+	gm = CS.Genemania("6239")
+	gm_scoreC = gm.scoreCalc
+
+
+	make_predictions(this_scores, eval_scoreF, all_scoreF, training_p,  training_n, number_of_cores, use_random_forest, outDir + ".train", gm.scoreCalc)
+	sys.exit() # itnegrate Fa without bugs then continue
+
 
 	tmp_line, tmp_head = CS.clustering_evaluation(train_comp, "Train", outDir + ".train")
 	train_num_ppis = CS.lineCount(outDir + ".train.pred.txt")
 	train_num_comp = CS.lineCount(outDir + ".train.clust.txt")
-	line += "%i\t%i" % (train_num_ppis, train_num_comp)
+	line += "%s\t%i\t%i" % (feature_combination, train_num_ppis, train_num_comp)
 	header += "Train num pred PPIs\tTrain num pred clust"
 	line += "\t" + tmp_line
 	header += "\t" + tmp_head
 	tmp_line, tmp_head = CS.clustering_evaluation(holdout_comp, "Holdout", outDir + ".train")
 	line += "\t" + tmp_line
 	header += "\t" + tmp_head
+
+	# if FA works make initial eval and see it works
+	# print header + "\n" + line
+	# sys.exit()
+
 
 
 	make_predictions(this_scores, eval_scoreF, all_scoreF, all_p,  all_n, number_of_cores, use_random_forest, outDir + ".all")
@@ -194,11 +205,38 @@ def benchmark():
 	for i in range(len(line)):
 		print "%s\t%s" % (header[i], line[i])
 
-def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, outDir):
+def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, outDir, fun_anno=""):
 	scoreCalc, scores_to_keep = readTable(fc, train_scoreF, gs=(pos | neg))
 	scoreCalc.addLabels(pos, neg)
 	scoreCalc.rebalance(ratio=5)
-	CS.predictInteractions(scoreCalc, outDir , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+
+	#instead of predicting only experimental predict: Exp, FA, and EXP+FA
+	#scoreCalc.merge_singe_ScoreCalc(FA_scorecalc)
+	#gene mane to file
+	#genemane.scoreclacl.toString()
+	#predicts using experiment only
+	CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+
+
+
+	#predicts using fun_anno only
+	# either switch file rad in memory FA data
+	# or write FA data as file and use it as input
+	#
+	#CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+
+	#predict using both functional annotation and exp
+	# merge scorecalc obj
+	# and add FA scores to prediction scores
+	# 	CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+
+	# collect the three rpedicted networks and do merging operation: (EXP union EXP_FA) - (FA - (EXP_FA)) # if the networks are sets you can write (exp | exp_fa) - (fa - exp_fa)
+	# be careful to not lose scoring for machine learning method for example EXP predicts A\tB\tS1 and EXP_FA predicts A\tB\tS2 take score S1
+
+	scoreCalc.merge_singe_ScoreCalc(fun_anno)
+	CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+
+
 	predF = "%s.pred.txt" % (outDir)
 	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	os.system(clustering_CMD)
