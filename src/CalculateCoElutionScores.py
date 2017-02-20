@@ -596,7 +596,7 @@ class Genemania:
 		for i, f_evidence in enumerate(self.functionalEvidences):
 			this_evidence_scores = {}
 			self.scoreCalc.header.append("GeneMania_%s" % f_evidence)
-			for fp in self.files:
+			for fp in self.files:                        #for de-bugging, I only used the first three files
 				filename = str(fp.split('/')[-1])
 				if filename.startswith(f_evidence):
 					print "Processing: %s" % (filename)
@@ -635,6 +635,7 @@ class Genemania:
 				self.scoreCalc.ppiToIndex[edge] = i
 				self.scoreCalc.IndexToPpi[i] = edge
 				self.scoreCalc.scores[i,:] = scores[edge]
+				i += 1
 
 	def getScoreCalc(self):
 		return self.scoreCalc
@@ -734,15 +735,20 @@ class CalculateCoElutionScores():
 #		for ppi in positive:
 #			if ppi in self.ppiToIndex: self.positive.add(ppi)
 
+		for ppi in positive:
+			if ppi in self.ppiToIndex:
+				self.positive.add(ppi)
+
 #		for ppi in negative:
 #			if ppi in self.ppiToIndex: self.negative.add(ppi)
 
 
 	# @author: Florian Goebels
-	# this method combines who CalculateCoElutionScores objects unto one by comping the toMerge object into the self object
+	# this method combines who CalculateCoElutionScores objects onto one by comping the toMerge object into the self object
 	# @Param:
-	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined tiwth self object
+	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined with self object
 	#		mode donates how to merge the sets, left, right, union, or intersect
+
 	def merge_singe_ScoreCalc(self, toMerge, mode):
 		allPPIs = ""
 		if mode == "u":
@@ -755,8 +761,12 @@ class CalculateCoElutionScores():
 			allPPIs = set(self.ppiToIndex.keys()) & set(toMerge.ppiToIndex.keys())
 
 		numFeature_in_merge = len(toMerge.header)-2
+		#print (toMerge.header)
+		#print ("~~~")
+		#print (self.header)
 		numFeature_in_self = len(self.header)-2
-		new_scores = np.zeros((len(allPPIs), numFeature_in_merge+numFeature_in_self))
+		new_scores = np.zeros((len(allPPIs), numFeature_in_merge + numFeature_in_self))
+
 		new_ppiToIndex = {}
 		new_IndexToPpi = {}
 		k = 0
@@ -776,6 +786,8 @@ class CalculateCoElutionScores():
 		self.ppiToIndex = new_ppiToIndex
 		self.IndexToPpi = new_IndexToPpi
 		self.header.extend(toMerge.header[2:])
+		#print ("I am debugging here")
+		#print (new_scores.shape)
 
 	def filter_coelutionscore(self, score_cutoff = 0.5):
 		valid_rows = []
@@ -1012,6 +1024,8 @@ class CalculateCoElutionScores():
 		targets = []
 		used_indeces = []
 		for i in range(self.scores.shape[0]):
+			#print ("index is here.")
+			#print (self.IndexToPpi[i])
 			ppi = self.IndexToPpi[i]
 			label = "?"
 			if ppi in self.positive: label = 1
@@ -1054,6 +1068,8 @@ class CLF_Wrapper:
 					('classification', thisCLF)
 				])
 		self.clf = thisCLF
+		print ("this is CLF")
+		print thisCLF
 		self.clf.fit(self.data, self.targets)
 
 	# @author Florian Goebels
@@ -1102,7 +1118,7 @@ class CLF_Wrapper:
 	# @author: Florian Goebels
 	# @Param:
 	#		toPred matric where each row is a data point and predicts interaction propability for a given set
-	#		note trainer needs to be already trained to be ablte to predict
+	#		note trainer needs to be already trained to be able to predict
 	def predict_proba(self, toPred):
 		probas = self.clf.predict_proba(toPred)
 		return probas[:,1]
@@ -1134,15 +1150,35 @@ def plotCurves(curves, outF, xlab, ylab):
 	art.append(lgd)
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
 
+#Class data wrapper
+# file
+# memory
+# combined
+
+# functions
+#  close
+#  give me next chunk
+# has next chunk
+
+#classifier
+
+
 # @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs= "", fun_anno_toadd="", score_cutoff=0.5):
+def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs = "", fun_anno_toadd = "", score_cutoff=0.5, mode = "exp"):
 	if scoreF =="": scoreF = outDir + ".scores.txt"
 	All_score_FH = open(scoreF)
 
-
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
+
+	#print ("hello, I am debugging")
+	#print (len(ids_train))
+	#print (data_train[1])
+	#print (len(targets_train))
+
+
+
+
 	clf = CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
-	print len(ids_train)
 	print data_train.shape
 	def getPredictions(scores, edges, clf):
 		out = []
@@ -1154,7 +1190,17 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 	#		out.append("%s\t%f\t%i" % (edges[i], pred_prob[i], prediction))
 		return out
 	out = []
-	tmpscores = np.zeros((100000, data_train.shape[1])) # add FA scores to column number
+	tmpscores = []
+	if mode == "fa":
+		print "mode is fa"
+		tmpscores = np.zeros((100000, len(fun_anno_toadd.header)-2))  # add FA scores to column number
+	if mode == "exp":
+		tmpscores = np.zeros((100000, data_train.shape[1]))  # add FA scores to column number
+	if mode == "merge":
+		tmpscores = np.zeros((100000, data_train.shape[1]) )  # add FA scores to column number
+		print ("I am debugging here")
+		print (tmpscores.shape)
+#	tmpscores = np.zeros((100000, data_train.shape[1])) # add FA scores to column number
 	edges = [""]*100000
 	header = All_score_FH.readline().rstrip().split("\t")
 	if fs != "": print np.array(header[2:])[fs]
@@ -1166,7 +1212,15 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 		i += 1
 		if k % 100000==0 and k != 0:
 			out.extend(getPredictions(tmpscores, edges, clf))
-			tmpscores = np.zeros((100000, data_train.shape[1]))
+			if mode == "fa":
+				tmpscores = np.zeros((100000, len(fun_anno_toadd.header) - 2))  # add FA scores to column number
+			if mode == "exp":
+				tmpscores = np.zeros((100000, data_train.shape[1]))  # add FA scores to column number
+			if mode == "merge":
+				tmpscores = np.zeros(
+					(100000, data_train.shape[1]))  # add FA scores to column number
+				#print ("I am debugging here")
+				#print (tmpscores.shape)
 			if verbose:
 				print "Completed chunk %i" % chunk_num
 				chunk_num += 1
@@ -1180,19 +1234,35 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 		else:
 			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], )))
 
-		#adding functional annotation to predict scores if functional annotation is available
-		if fun_anno_toadd!="":
+		if mode == "merge":
 			scores = [0]*(len(fun_anno_toadd.header)-2)
 			if edge in fun_anno_toadd.ppiToIndex:
 				scores = fun_anno_toadd.scores[fun_anno_toadd.ppiToIndex[edge],:]
-			edge_scores = np.append(edge_scores, scores)
+			edge_scores = np.array(np.append(edge_scores, scores))
+			#print ("edge_scores shape")
+			#print (edge_scores.shape)
+
+		if mode == "fa":
+			edge_scores = np.array([0]*(len(fun_anno_toadd.header)-2))
+			if edge in fun_anno_toadd.ppiToIndex:
+				edge_scores = np.array(fun_anno_toadd.scores[fun_anno_toadd.ppiToIndex[edge],:])
+
+		ScoreCutoff = 0.5 # Set a score Cutoff for PPIs input score for exp, fa and exp+fa
+
+		if mode == "fa":
+			ScoreCutoff = 0 # if we use functional evidence to predict PPIs, we only
 
 		# edge_scores = edge_scores + fa_scores
-		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0:
+		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) >= ScoreCutoff: ##only check the first 64 columns of the array
 			edge_scores = edge_scores.reshape(1, -1)
 			j += 1
 			edges[k] = edge
-			tmpscores[k,:] = edge_scores
+			#print ("I am debugging here~")
+			#if 	(edge_scores.shape)[1] > 64:
+			#print (edge_scores.shape)
+			#print (tmpscores.shape)
+
+			tmpscores[k,0:(edge_scores.shape)[1]] = edge_scores
 			k += 1
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	All_score_FH.close()
@@ -1289,7 +1359,10 @@ def clustering_evaluation(eval_comp, prefix, outDir):
 	head = "\t".join(["%s %s" % (prefix, h) for h in ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy", "sep"]])
 
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
-	pred_clusters.read_file("%s.clust.txt" % (outDir))
+	#pred_clusters.read_file("%s.clust.txt" % (outDir))
+	print ("debugging here")
+	print (outDir)
+	pred_clusters.read_file((outDir))
 
 	pred_clusters.filter_complexes()
 	pred_clusters.merge_complexes()
