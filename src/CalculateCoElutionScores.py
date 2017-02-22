@@ -596,7 +596,7 @@ class Genemania:
 		for i, f_evidence in enumerate(self.functionalEvidences):
 			this_evidence_scores = {}
 			self.scoreCalc.header.append("GeneMania_%s" % f_evidence)
-			for fp in self.files:                        #for de-bugging, I only used the first three files
+			for fp in self.files[0:3]:                        #for de-bugging, I only used the first three files
 				filename = str(fp.split('/')[-1])
 				if filename.startswith(f_evidence):
 					print "Processing: %s" % (filename)
@@ -1247,13 +1247,11 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 			if edge in fun_anno_toadd.ppiToIndex:
 				edge_scores = np.array(fun_anno_toadd.scores[fun_anno_toadd.ppiToIndex[edge],:])
 
-		ScoreCutoff = 0.5 # Set a score Cutoff for PPIs input score for exp, fa and exp+fa
-
 		if mode == "fa":
-			ScoreCutoff = 0 # if we use functional evidence to predict PPIs, we only
+			score_cutoff = 0 # if we use functional evidence to predict PPIs, we only
 
 		# edge_scores = edge_scores + fa_scores
-		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) >= ScoreCutoff: ##only check the first 64 columns of the array
+		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0: ##only check the first 64 columns of the array
 			edge_scores = edge_scores.reshape(1, -1)
 			j += 1
 			edges[k] = edge

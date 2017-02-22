@@ -247,11 +247,72 @@ def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, 
 	# be careful to not lose scoring for machine learning method for example EXP predicts A\tB\tS1 and EXP_FA predicts A\tB\tS2 take score S1
 
 
+	#predict protein complexes using PPIs excluding PPIs only from functional evidence (merged + exp - FA)
+	if mode == "final":
+		#predict PPIs using only exp data:
+		CS.predictInteractions(scoreCalc, outDir + ".exp", use_rf, num_cores, scoreF=all_scoreF, verbose=True,
+							   fs=scores_to_keep)
+		outDirExp = outDir + ".exp.pred.txt"
+
+		#predict PPIs using Functional evidence only
+		CS.predictInteractions(fun_anno, outDir + ".fa", use_rf, num_cores, scoreF=all_scoreF, fun_anno_toadd=fun_anno,
+						   verbose=True, fs=scores_to_keep, mode="fa", score_cutoff=0)
+		outDirFA = outDir + ".fa.pred.txt"
+
+		#predict PPIs using merged data: functional evidence plus exp
+		scoreCalc.merge_singe_ScoreCalc(fun_anno, "l")
+		CS.predictInteractions(scoreCalc, outDir + ".merge", use_rf, num_cores, scoreF=all_scoreF, fun_anno_toadd=fun_anno,
+						   verbose=True, fs=scores_to_keep, mode="merge")
+		outDirMerged = outDir + ".merge.pred.txt"
+
+		finalPPIsDict = {}
+
+		functionalEvidencePPIsDict = {}
+
+		#read exp based PPIs into finalPPIsDict
+		with open(outDirExp) as fp:
+			for line in fp:
+				proteinA, proteinB, score = line.split()
+				edge = "\t".join(sorted([proteinA, proteinB]))
+				if edge not in finalPPIsDict:
+					finalPPIsDict[edge] = score
+
+		#read functional evidence based PPIs into functionalEvidencePPIsDict
+		with open(outDirFA) as fp:
+			for line in fp:
+				proteinA, proteinB, score = line.split()
+				edge = "\t".join(sorted([proteinA, proteinB]))
+				if edge not in finalPPIsDict:
+					functionalEvidencePPIsDict[edge] = score
+
+		#read merged PPIs and if the PPIs only comes from functional evidence, then delete it.
+		with open(outDirMerged) as fp:
+			for line in fp:
+				proteinA, proteinB, score = line.split()
+				edge = "\t".join(sorted([proteinA, proteinB]))
+				if edge not in functionalEvidencePPIsDict:
+					finalPPIsDict[edge] = score
+
+		outDir = outDir + ".final"
+		outFH = open(outDir + ".pred.txt", "w")
+
+		for key in finalPPIsDict:
+			outFH.write(key)
+			outFH.write("\t")
+			outFH.write(finalPPIsDict[key])
+			outFH.write("\n")
+			#eachLine = "\t".join(key, finalPPIsDict[key])
+			#outFH.write("\n".join(eachLine))
+
+		outFH.close()
+
 	#predict protein complexes from the PPIs file using CLusterOne algorithm...
 	predF = "%s.pred.txt" % (outDir)
 	clustering_CMD = "java -jar /Users/lucasminghu/Desktop/EPIC_08_02_2017/EPIC/src/ClusterOne/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
 	print (clustering_CMD)
 	os.system(clustering_CMD)
+	print ("debugging here!")
+	print (outDir + ".pred.txt")
 
 	return (outDir + ".clust.txt", outDir + ".pred.txt")
 
@@ -266,7 +327,7 @@ def main():
 	#print sc
 	#print sc.IndexToPpi
 	#sys.exit()
-	benchmark(sc, "merge")
+	benchmark(sc, "final")
 #	cluster_overlapp()
 #	calc_chunkscors()
 #	calculate_allscores()
@@ -276,3 +337,5 @@ if __name__ == "__main__":
 		main()
 	except KeyboardInterrupt:
 		pass
+
+	#11000100 (MI, Bayes, PCC+N)
