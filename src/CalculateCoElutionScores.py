@@ -55,6 +55,7 @@ r_wcc = robjects.r['wcc']
 
 # array for storing elution matrices with poission noise for PCC + Noise co-elution freature
 Poisson_cor_Mat = []
+Bayes_cor_Mat	= []
 
 # Default number of Threads is number of available cores
 num_cores = mp.cpu_count()
@@ -135,6 +136,20 @@ class ElutionData():
 		elutionProfileFH.close()
 		elutionMat = np.nan_to_num(np.matrix(elutionMat))
 		return elutionMat, prot2Index
+
+	def orthmap(self, mapping):
+		newMat = []
+		newprot2Index = {}
+		i = 0
+		for prot, index in self.prot2Index.items():
+			orth_prot = mapping.mapProtein(prot)
+			if orth_prot == None: continue
+			newMat.append(self.getElution(prot,normed=False))
+			newprot2Index[orth_prot] = i
+			i += 1
+		self.elutionMat = np.array(newMat)
+		self.prot2Index = newprot2Index
+		self.normedElutionMat = normalize_fracs(self.elutionMat)
 
 		
 
@@ -269,6 +284,7 @@ class Apex(object):
 # @ author Florian Goebels
 # returns bayes correlation for two proteins
 # reference on how the score is calculated is here: http://www.perkinslab.ca/sites/perkinslab.ca/files/Bayes_Corr.R
+"""
 def getRmat(a,b):
 	dims = np.matrix([a, b]).shape
 	r_cro_mat_object = robjects.r.matrix(robjects.IntVector(np.append(a, b)), nrow=dims[1], ncol=dims[0])
@@ -279,6 +295,14 @@ def calculateScoreBayes(a,b):
 	r_cro_mat = getRmat(a,b)
 	global current_bayes_cor
 	return  current_bayes_cor (r_cro_mat)[1]
+"""
+
+
+def calculateScoreBayes(a,b):
+	global Bayes_cor_Mat
+	index, a = a
+	_, b = b
+	return Bayes_cor_Mat[index][a][b]
 
 class Bayes:
 	def __init__(self, bayesType):
@@ -291,9 +315,7 @@ class Bayes:
 		fname = "%s.%s" % (elutionData.name, self.name)
 		global prot2profile
 		prot2profile[fname] = {}
-		for prot in elutionData.prot2Index:
-			prot2profile[fname][prot] = map( math.log, elutionData.getElution(prot)+1)
-		global current_bayes_cor, cor1, cor2, cor3
+		global current_bayes_cor, cor1, cor2, cor3, Bayes_cor_Mat
 		if self.bayesType == 1:
 			current_bayes_cor = cor1
 		elif self.bayesType == 2:
@@ -304,10 +326,20 @@ class Bayes:
 			print("Invalid bayes selection")
 			sys.exit()
 			#TODO throw error instead of print
+		elutionMat = elutionData.elutionMat
+		dims = elutionMat.shape
+		r_mat = robjects.r.matrix(robjects.IntVector(elutionMat.flatten().tolist()), nrow=dims[0], ncol=dims[1])
+		bayes_mat = np.array(current_bayes_cor(r_mat))
+		Bayes_cor_Mat.append(bayes_mat)
+		index = len(Bayes_cor_Mat) - 1
+		for prot in elutionData.prot2Index:
+			prot2profile[fname][prot] = (index, elutionData.getProtIndex(prot))
+			#prot2profile[fname][prot] = map( math.log, elutionData.getElution(prot)+1)
 
 
 	def clear(self):
-		global prot2profile
+		global prot2profile, Bayes_cor_Mat
+		Bayes_cor_Mat = []
 		prot2profile = {}
 		return True
 
@@ -718,7 +750,7 @@ class CalculateCoElutionScores():
 	# this method inits the object
 	# @Param:
 	#		elutionData (optional) specify which data needs to be processed
-	def __init__(self, elutionData=""):
+	def __init__(self, elutionData="", cutoff = 0.5):
 		self.elutionData = elutionData
 		self.scores = np.array([])
 		self.header = ["ProtA","ProtB"]
@@ -726,10 +758,15 @@ class CalculateCoElutionScores():
 		self.IndexToPpi = {}
 		self.positive = set([])
 		self.negative = set([])
+		self.cutoff = cutoff
 
-	def addLabels(self, positive, negative):
-		self.positive = positive & set(self.ppiToIndex.keys())
-		self.negative = negative & set(self.ppiToIndex.keys())
+	def addLabels(self, positive, negative, filter=False):
+		if filter:
+			self.positive = positive & set(self.ppiToIndex.keys())
+			self.negative = negative & set(self.ppiToIndex.keys())
+		else:
+			self.positive = positive
+			self.negative = negative
 
 #		for ppi in positive:
 #			if ppi in self.ppiToIndex: self.positive.add(ppi)
@@ -911,7 +948,7 @@ class CalculateCoElutionScores():
 				score_index, score = out_queue.get()
 				ppi_scores[score_index] = score
 			ppi_scores = np.nan_to_num(np.array(ppi_scores))
-			if len(list(set(np.where(ppi_scores > 0.5)[0]))) > 0:
+			if len(list(set(np.where(ppi_scores > self.cutoff)[0]))) > 0:
 				if outFile != "": write_buffer +=  "%s\t%s\n" % (ppi, "\t".join(map(str, ppi_scores)))
 				if ppi in gs or outFile=="":
 					self.ppiToIndex[ppi] = ppi_index
@@ -984,11 +1021,13 @@ class CalculateCoElutionScores():
 			counts[label] += 1
 		return counts
 
-	def readTable(self, scoreF):
+	def readTable(self, scoreF, filter = True):
 		scoreFH = open(scoreF)
 		self.header = scoreFH.readline().rstrip().split("\t")
 		gs = self.positive | self.negative
-		self.scores = np.zeros((len(self.positive)+len(self.negative), len(self.header)-2))
+		colnum = len(self.positive)+len(self.negative)
+		if filter == False: colnum = lineCount(scoreF)
+		self.scores = np.zeros((colnum, len(self.header)-2))
 		i = 0
 		self.ppiToIndex = {}
 		for line in scoreFH:
@@ -996,7 +1035,7 @@ class CalculateCoElutionScores():
 			if line == "": continue
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
-			if edge not in gs: continue
+			if edge not in gs and filter == True: continue
 			edge_scores = np.nan_to_num(np.array(map(float, linesplit[2:])))
 			self.scores[i,:] = edge_scores
 			self.IndexToPpi[i] = edge
@@ -1044,7 +1083,7 @@ class CLF_Wrapper:
 		thisCLF = ""
 		if forest:
 			print("using Random forest")
-			thisCLF = RandomForestClassifier(n_estimators=400, n_jobs=self.num_cores)
+			thisCLF = RandomForestClassifier(n_estimators=1000, n_jobs=self.num_cores)
 		else:	
 			print("Using SVM")
 			thisCLF =  svm.SVC(kernel="linear", probability=True)
@@ -1205,7 +1244,7 @@ def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", ver
 	return outDir + ".pred.txt", len(out) # cahnge output so it also returns the network
 
 
-def load_data(data_dir, scores):
+def load_data(data_dir, scores, orthmap=""):
 	paths = [os.path.join(data_dir,fn) for fn in next(os.walk(data_dir))[2]]
 	elutionDatas = []
 	elutionProts = set([])
@@ -1213,6 +1252,11 @@ def load_data(data_dir, scores):
 		if elutionFile.rsplit(os.sep, 1)[-1].startswith("."): continue
 		elutionFile = elutionFile.rstrip()
 		elutionData = ElutionData(elutionFile)
+		if orthmap !="":
+			if orthmap != False:
+				mapper = GS.Inparanoid("", inparanoid_cutoff=1)
+				mapper.readTable(orthmap, direction=0)
+				elutionData.orthmap(mapper)
 		elutionDatas.append(elutionData)
 		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
 		for score in scores:
@@ -1228,14 +1272,17 @@ def create_goldstandard(target_taxid, valprots):
 	orthmap = ""
 	if target_taxid !="9606": orthmap = GS.Inparanoid(taxid=target_taxid)
 
-	# Create gold standard from CORUM
-	training_gs = create_gs_set([GS.CORUM(), GS.Intact_clusters()], orthmap, "Training", valprots)
+#	create_gs_set([GS.CORUM()], orthmap, "CORUM", valprots)
+#	create_gs_set([GS.Intact_clusters()], orthmap, "Intact", valprots)
+
+	# Create gold standard from CORUM 9606 stands for Human
+	training_gs = create_gs_set([GS.CORUM(), GS.Intact_clusters(), GS.QuickGO("9606")], orthmap, "Training", valprots)
 
 	# Create gold standard from GO
 	holdout_gs = create_gs_set([GS.QuickGO(target_taxid)], "", "Holdout", valprots)
 
 	#Create gold stnadard from Intact
-	all_gs = create_gs_set([GS.Intact_clusters(), GS.CORUM(), GS.QuickGO(target_taxid)], orthmap, "All", valprots)
+	all_gs = create_gs_set([GS.Intact_clusters(), GS.CORUM(), GS.QuickGO(target_taxid), GS.QuickGO("9606")], orthmap, "All", valprots)
 
 	training_p, training_n = training_gs.get_goldstandard()
 	all_p, all_n = all_gs.get_goldstandard()
@@ -1251,38 +1298,268 @@ def create_goldstandard(target_taxid, valprots):
 	return training_p, training_n, all_p, all_n, holdout_complexes, training_complexes, all_complexes
 
 
+def huri_predict():
+	clsuterF, scoreF, outDir = sys.argv[1:]
 
-def calculate_features():
-	return None
+	num_cores = 4
+	use_rf = False
 
-def make_classification():
-	return None
+	all_comp = GS.Clusters(False)
+	all_comp.read_file(clsuterF)
+	all_p, all_n = all_comp.getPositiveAndNegativeInteractions()
+
+#	ppi_gs = GS.Goldstandard_from_PPIs(ppiF, 100)
+#	all_p = ppi_gs.goldstandard_positive
+#	all_n = ppi_gs.goldstandard_negative
+
+
+	scoreCalc = CalculateCoElutionScores()
+	scoreCalc.positive = all_p
+	scoreCalc.negative = all_n
+
+	scoreCalc.readTable(scoreF)
+
+	scoreCalc.addLabels(all_p, all_n, True)
+	scoreCalc.rebalance()
+
+	print len(scoreCalc.positive)
+	print len(scoreCalc.negative)
+
+	bench_scores(scoreCalc, outDir, 4, True)
+
+	predictInteractions(scoreCalc, outDir, use_rf, num_cores, scoreF=scoreF)
+
+	predF = "%s.pred.txt" % (outDir)
+	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+	os.system(clustering_CMD)
+
+	line = ""
+	header = ""
+
+	tmp_line, tmp_head = clustering_evaluation(all_comp, "All", outDir )
+	all_num_ppis = lineCount(outDir + ".pred.txt")
+	all_num_comp = lineCount(outDir + ".clust.txt")
+	line += "\t%i\t%i" % (all_num_ppis, all_num_comp)
+	header += "\tAll num pred PPIs\tAll num pred clust"
+	line += "\t" + tmp_line
+	header += "\t" + tmp_head
+
+
+
+	outFH = open(outDir + ".eval.txt", "w")
+	print >> outFH, line
+	outFH.close()
+	line = line.split("\t")
+	header = header.split("\t")
+	for i in range(len(line)):
+		print "%s\t%s" % (header[i], line[i])
+
+
+
+def Huri_main():
+	#Huri_pred_non_human_data()
+	#Huri_merge()
+	#id_map_complexes()
+	#id_map_edges()
+	huri_predict()
+	#HuRi_clustEval()
+
+
+
+def getValIds(f, all=False):
+	ids = set([])
+	id_fh = open(f)
+	for line in id_fh:
+		line = line.rstrip()
+		line = line.split("\t")
+		if all:
+			to_add = line
+		else:
+			to_add = line[:2]
+		for id in to_add:
+			ids.add(id)
+	id_fh.close()
+	return ids
+
+def read_map(f, ids, direction=0):
+	mapping = {}
+	map_fh = open(f)
+	for line in map_fh:
+		line = line.rstrip()
+		if direction == 0:
+			target, source_id = line.split("\t")
+		else:
+			source_id, target = line.split("\t")
+
+		if source_id not in ids:continue
+		if source_id not in mapping: mapping[source_id] = set([])
+		mapping[source_id].add(target)
+	map_fh.close()
+
+	todel = set([])
+	for p, m_ps in mapping.items():
+		if len(m_ps) > 1: todel.add(p)
+	for p in todel:
+		del mapping[p]
+	return mapping
+
+def id_map_complexes():
+	file_to_map, mapping_file, outF = sys.argv[1:]
+
+	ids = getValIds(file_to_map)
+	mapping = read_map(mapping_file, ids, 1)
+
+	outFH = open(outF, "w")
+	to_map_fh = open(file_to_map)
+	for line in to_map_fh:
+		line = line.rstrip()
+		line = line.split("\t")
+		new_ids = set([])
+		for id in line:
+			if id not in mapping: continue
+			new_ids.add(list(mapping[id])[0])
+		if len(new_ids)>2:
+			print >> outFH, "\t".join(new_ids)
+	to_map_fh.close()
+	outFH.close()
+
+def id_map_edges():
+	file_to_map, mapping_file, outF = sys.argv[1:]
+
+	ids = getValIds(file_to_map)
+	mapping = read_map(mapping_file, ids, 1)
+
+	outFH = open(outF, "w")
+	to_map_fh = open(file_to_map)
+	for line in to_map_fh:
+		line = line.rstrip()
+		line = line.split("\t")
+		id1, id2 = line[0:2]
+		if id1 not in mapping or id2 not in mapping:continue
+		m_id1 = list(mapping[id1])[0]
+		m_id2 = list(mapping[id2])[0]
+		if len(line)> 2:
+			print >> outFH, "%s\t%s" % ("\t".join(sorted([m_id1, m_id2])), "\t".join(line[2:]))
+		else:
+			print >> outFH, "%s" % ("\t".join(sorted([m_id1, m_id2])))
+
+	to_map_fh.close()
+	outFH.close()
+
+
+def Huri_pred_non_human_data():
+
+	input_dir, num_cores, orthmap, topredF, output_dir = sys.argv[1:]
+
+	toPred  = []
+	topredFH = open(topredF)
+	for line in topredFH:
+			line = line.rstrip()
+			toPred.append(line)
+	topredFH.close()
+	toPred = set(toPred)
+
+#	this_scores = [Wcc(), Poisson(5)]
+	this_scores = [Euclidiean()]
+	num_cores = int(num_cores)
+
+	foundprots, elution_datas = load_data(input_dir, this_scores, orthmap)
+	scoreCalc = CalculateCoElutionScores(cutoff=0)
+	can_pred = set(scoreCalc.getAllPairs_coelutionDatas(elution_datas))
+	print len(toPred)
+	toPred = can_pred & toPred
+	print len(toPred)
+	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, output_dir, num_cores, toPred=toPred)
+
+
+def Huri_merge():
+	scoreF, out_file= sys.argv[1:3]
+	toadd = sys.argv[3:]
+
+	hs_scores = CalculateCoElutionScores()
+	hs_scores.readTable(scoreF, False)
+
+	scoreCalc = CalculateCoElutionScores()
+	for file in toadd:
+		print file
+		to_add_sc = CalculateCoElutionScores()
+		to_add_sc.readTable(file, False)
+		scoreCalc.merge_singe_ScoreCalc(to_add_sc, "u")
+	hs_scores.merge_singe_ScoreCalc(scoreCalc, "l")
+	outFH = open(out_file, "w")
+	hs_scores.toTable(outFH, labels= False)
+
+def HuRi_clustEval():
+	reference_clusters, outDir = sys.argv[1:]
+
+	ref_c = GS.Clusters(False)
+	ref_c.read_file(reference_clusters)
+
+#	pred_c = GS.Clusters(False)
+#	pred_c.read_file(predicted_clusters)
+
+
+	line, head = clustering_evaluation(ref_c, "Fu", outDir )
+
+#	outFH = open(outDir + ".eval.txt", "w")
+#	print >> outFH, line
+#	outFH.close()
+	line = line.split("\t")
+	header = head.split("\t")
+	for i in range(len(line)):
+		print "%s\t%s" % (header[i], line[i])
 
 def main():
-	out_dir = "/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test"
-	selection = [True, False, True, False, False, False, False, False ]
-	use_rf = True
-	input_dir = "/Users/florian/workspace/scratch/EPIC_out/test_input_dir"
-	num_cores = 4
-	target_taxid = "6239"
+
+	allF, feature_combination, input_dir, use_rf, num_cores, target_taxid, output_dir = sys.argv[																																				1:]
+	if feature_combination == "00000000": sys.exit()
 	all_scores = [Pearson(), Jaccard(), Apex(), MutualInformation(2), Euclidiean(), Wcc(), Bayes(3), Poisson(5)]
+	scores = [MutualInformation(2), Bayes(3), Euclidiean(), Wcc(), Jaccard(), Poisson(5),
+			  Pearson(), Apex()]
 	this_scores = []
-	for i, selection in enumerate(selection):
-		if selection: this_scores.append(all_scores[i])
+	use_rf = use_rf == "True"
+	num_cores = int(num_cores)
+	for i, feature_selection in enumerate(feature_combination):
+		if feature_selection == "1": this_scores.append(scores[i])
+	this_scores = []#[Bayes(1), Bayes(2), Bayes(3)]
+
+	print this_scores
+
+	all_complexes = GS.Clusters(False)
+	all_complexes.read_file(allF)
+	all_p, all_n = all_complexes.getPositiveAndNegativeInteractions()
+
 	foundprots, elution_datas = load_data(input_dir, this_scores)
-	evals = create_goldstandard(target_taxid, foundprots)
-	training_p, training_n, all_p, all_n, go_complexes, corum_complexes = evals
+
+	_, _, all_p, all_n, _, _, all_complexes = create_goldstandard(target_taxid, foundprots)
+
+	sys.exit()
 	scoreCalc = CalculateCoElutionScores()
-	scoreCalc.addLabels(all_p, all_n)
-	scoreCalc.readTable("/Users/florian/workspace/scratch/EPIC_out/test_output_dir/test.scores.txt")
-	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, out_dir, num_cores)
-	scoreCalc.addLabels(training_p, training_n)
-	print "doing benchmark"
-	bench_scores(scoreCalc, out_dir, num_cores, useForest=use_rf)
-	scoreCalc.addLabels(all_p, all_n)
-	print "doing prediction"
-	predictInteractions(scoreCalc, out_dir, use_rf, num_cores)
-	clustering_evaluation(evals, scoreCalc, out_dir, ",".join([score.name for score in this_scores]), num_cores, use_rf)
+	scoreCalc.positive = all_p
+	scoreCalc.negative = all_n
+
+#	scoreCalc.rebalance()
+#	gs = scoreCalc.positive | scoreCalc.negative
+
+#	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, output_dir, num_cores)#, toPred=gs)
+
+#	scoreCalc.rebalance()
+
+#	bench_scores(scoreCalc, output_dir, num_cores, useForest=use_rf)
+	predF = "%s.pred.txt" % (output_dir)
+#	clustering_CMD = "java -jar cluster_one-1.0.jar %s > %s.clust.txt" % (predF, output_dir)
+#	print(clustering_CMD)
+#	os.system(clustering_CMD)
+
+	tmp_line, tmp_head = clustering_evaluation(all_complexes, "All", output_dir )
+	all_num_ppis = lineCount(output_dir + ".pred.txt")
+	all_num_comp = lineCount(output_dir + ".clust.txt")
+	line = "%i\t%i" % (all_num_ppis, all_num_comp)
+	header = "All num pred PPIs\tAll num pred clust"
+	line += "\t" + tmp_line
+	header += "\t" + tmp_head
+
+
 
 def clustering_evaluation(eval_comp, prefix, outDir):
 
@@ -1291,9 +1568,14 @@ def clustering_evaluation(eval_comp, prefix, outDir):
 	pred_clusters = GS.Clusters(need_to_be_mapped=False)
 	pred_clusters.read_file("%s.clust.txt" % (outDir))
 
+	# remove complexes that can not match reference
+#	ref_prots = set(eval_comp.getProtToComplexMap().keys())
+#	pred_clusters.remove_proteins(ref_prots)
+
 	pred_clusters.filter_complexes()
 	pred_clusters.merge_complexes()
 	pred_clusters.filter_complexes()
+
 
 	cluster_scores = "\t".join(map(str, pred_clusters.clus_eval(eval_comp)))
 	return cluster_scores, head
@@ -1305,6 +1587,7 @@ def get_eval(scoreCalc, num_cores, useForest=False, folds=3):
 	data = np.array(data)
 	clf = CLF_Wrapper(data, targets, num_cores=num_cores, forest=useForest, folds=folds,
 					  useFeatureSelection=False)
+	print clf.getValScores()
 	p, r, tr = clf.getPRcurve()
 	pr_curve = tuple([r,p, tr])
 	fpr, tpr, tr = clf.getROCcurve()
@@ -1329,6 +1612,6 @@ def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=3):
 
 if __name__ == "__main__":
 		try:
-				main()
+				Huri_main()
 		except KeyboardInterrupt:
 				pass

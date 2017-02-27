@@ -8,10 +8,11 @@ import copy
 import re
 import math
 import sys
+import random as rnd
 
 
 class Goldstandard_from_PPIs():
-	def __init__(self, refF):
+	def __init__(self, refF, ratio= -1):
 		self.goldstandard_positive = set([])
 		self.goldstandard_negative = set([])
 		allprots = set([])
@@ -25,10 +26,17 @@ class Goldstandard_from_PPIs():
 			self.goldstandard_positive.add(pos_edge)
 		refFH.close()
 		allprots = list(allprots)
-		for i in range(len(allprots)):
-			prot_i = allprots[i]
-			for j in range(i+1, len(allprots)):
-				prot_j = allprots[j]
+		if ratio == -1:
+			for i in range(len(allprots)):
+				prot_i = allprots[i]
+				for j in range(i+1, len(allprots)):
+					prot_j = allprots[j]
+					edge = "\t".join(sorted([prot_i, prot_j]))
+					if edge in self.goldstandard_positive: continue
+					self.goldstandard_negative.add(edge)
+		else:
+			while(len(self.goldstandard_negative)< len(self.goldstandard_positive)*ratio):
+				prot_i, prot_j = rnd.sample(allprots,2)
 				edge = "\t".join(sorted([prot_i, prot_j]))
 				if edge in self.goldstandard_positive: continue
 				self.goldstandard_negative.add(edge)
@@ -350,10 +358,13 @@ class Clusters():
 				if (simco_score+overlap_score)/2 >= 0.375:
 					out_comb.add(complex)
 
-		out_overlap = len(out_overlap)/len(self.complexes)
-		out_simcoe = len(out_simcoe)/len(self.complexes)
-		out_comb = len(out_comb) / len(self.complexes)
-		return "%f\t%f\t%f" % (out_overlap, out_simcoe, out_comb)
+		if len(self.complexes) == 0:
+			return "0\t0\t0"
+		else:
+			out_overlap = len(out_overlap)/len(self.complexes)
+			out_simcoe = len(out_simcoe)/len(self.complexes)
+			out_comb = len(out_comb) / len(self.complexes)
+			return "%f\t%f\t%f" % (out_overlap, out_simcoe, out_comb)
 
 	def sensitivity(self, reference):
 		max_overlap_per_predicted_clustes = {}
@@ -365,7 +376,10 @@ class Clusters():
 				overlap = len(self.complexes[predicted_cluster] & reference.complexes[reference_cluster])
 				max_overlap_per_predicted_clustes[predicted_cluster] = max( max_overlap_per_predicted_clustes[predicted_cluster], overlap)
 		max_overlap_per_predicted_clustes = sum(max_overlap_per_predicted_clustes.values())
-		return max_overlap_per_predicted_clustes/sum_of_all_cluster_sizes
+		if sum_of_all_cluster_sizes == 0:
+			return 0
+		else:
+			return max_overlap_per_predicted_clustes/sum_of_all_cluster_sizes
 
 
 	def ppv(self, reference):
@@ -376,7 +390,10 @@ class Clusters():
 			for m, reference_cluster in enumerate(reference.complexes):
 				overlap = len(self.complexes[predicted_cluster] & reference.complexes[reference_cluster])
 				overlap_mat[n,m] = overlap
-		return np.sum(overlap_mat.max(axis=0))/np.sum(overlap_mat)
+		if np.sum(overlap_mat) == 0:
+			return 0
+		else:
+			return np.sum(overlap_mat.max(axis=0))/np.sum(overlap_mat)
 
 	def acc(self, reference, sn = None, ppv = None):
 		if sn == None: sn = self.sensitivity(reference)
@@ -384,6 +401,8 @@ class Clusters():
 		return math.sqrt(sn*ppv)
 
 	def clus_sep(self, reference):
+		if len(self.complexes) == 0:
+			return 0
 		n = len(self.complexes)
 		m = len(reference.complexes)
 		row_F = np.zeros((n, m))
@@ -394,7 +413,6 @@ class Clusters():
 				overlap = len(self.complexes[compA] & reference.complexes[compB])
 				row_F[i,j] = overlap
 				col_F[i,j] = overlap
-		print np.sum(row_F)
 
 		row_F = np.nan_to_num(row_F/np.sum(row_F, axis=1, keepdims=True))
 		col_F = np.nan_to_num(col_F/np.sum(col_F, axis=0, keepdims=True))
@@ -473,12 +491,18 @@ class Inparanoid():
 		self.taxid2Name = self.getTaxId2Namemapping()
 		self.inparanoid_cutoff = inparanoid_cutoff
 		self.foundProts = foundProts
-		if taxid in self.taxid2Name:
-			self.species = self.taxid2Name[taxid]
-			xmldoc = self.getXML()
-			self.orthmap, self.orthgroups = self.parseXML(xmldoc)
-		else:
-			print "Taxid:%s not supported" % taxid
+		if taxid != "":
+			if taxid in self.taxid2Name:
+				self.species = self.taxid2Name[taxid]
+				xmldoc = self.getXML()
+				self.orthmap, self.orthgroups = self.parseXML(xmldoc)
+			else:
+				print "Taxid:%s not supported" % taxid
+
+	def mapProtein(self, prot):
+		if prot not in self.orthmap: return None
+		return self.orthmap[prot]
+
 
 	# @author Florian Goebels
 	# mappes protein interactions to their respectiv ortholog counterpart
@@ -494,6 +518,7 @@ class Inparanoid():
 		return mapped_edges
 
 	def mapComplexes(self, clusters):
+		todel = set([])
 		for clust in clusters.complexes:
 			mapped_members = set([])
 			for prot in clusters.complexes[clust]:
@@ -501,7 +526,13 @@ class Inparanoid():
 					mapped_members.add(self.orthmap[prot])
 #				else:
 #					print "No map for %s" % prot
-			clusters.complexes[clust] = mapped_members
+
+			if len(mapped_members)==0:
+				todel.add(clust)
+			else:
+				clusters.complexes[clust] = mapped_members
+		for clust in todel:
+			del clusters.complexes[clust]
 
 	# @author Florian Goebels
 	# get taxid to inparanoid name mapping from the inparanoid website
@@ -571,7 +602,7 @@ class Inparanoid():
 		xmldoc = minidom.parseString(xml_str)
 		return xmldoc
 
-	def readTable(self, tableF):
+	def readTable(self, tableF, direction = 0):
 		tableFH = open(tableF)
 		targetGenes = set([])
 		orthgroups = []
@@ -586,7 +617,10 @@ class Inparanoid():
 			return out
 		tableFH.readline()
 		for line in tableFH:
-			orthID, score, target_orth, source_orth = line.rstrip().split("\t")
+			if direction == 0:
+				orthID, score, target_orth, source_orth = line.rstrip().split("\t")
+			else:
+				orthID, score, source_orth, target_orth = line.rstrip().split("\t")
 			targetids = getids(target_orth.split())
 			sourceids = getids(source_orth.split())
 			group = []
