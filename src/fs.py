@@ -130,7 +130,7 @@ def make_ref_data():
 #	predFH.close()
 
 
-def benchmark():
+def benchmark(FA, mode):
 	feature_combination, use_random_forest, number_of_cores, gs_train_F, gs_all_F, trainingF, holdoutF, allF, eval_scoreF, all_scoreF, outDir = sys.argv[1:]
 	if feature_combination == "00000000": sys.exit()
 	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
@@ -139,7 +139,11 @@ def benchmark():
 	number_of_cores = int(number_of_cores)
 	for i, feature_selection in enumerate(feature_combination):
 		if feature_selection == "1": this_scores.append(scores[i])
+<<<<<<< HEAD
 	this_scores = [CS.Bayes(3)]
+=======
+	print ("score is coming")
+>>>>>>> f25ce2744baec522112556974599dfdca864fd17
 	print this_scores
 
 
@@ -164,34 +168,52 @@ def benchmark():
 	header = ""
 	line = ""
 
+<<<<<<< HEAD
 #	gm = CS.Genemania("6239")
 #	gm_scoreC = gm.scoreCalc
 
 	"""
 	make_predictions(this_scores, eval_scoreF, all_scoreF, training_p,  training_n, number_of_cores, use_random_forest, outDir + ".train")
 	# itnegrate Fa without bugs then continue
+=======
+	#gm = CS.Genemania("6239")
+	#gm_scoreC = gm.scoreCalc
 
 
-	tmp_line, tmp_head = CS.clustering_evaluation(train_comp, "Train", outDir + ".train")
-	train_num_ppis = CS.lineCount(outDir + ".train.pred.txt")
-	train_num_comp = CS.lineCount(outDir + ".train.clust.txt")
-	line += "%s\t%i\t%i" % (feature_combination, train_num_ppis, train_num_comp)
-	header += "Train num pred PPIs\tTrain num pred clust"
-	line += "\t" + tmp_line
-	header += "\t" + tmp_head
-	tmp_line, tmp_head = CS.clustering_evaluation(holdout_comp, "Holdout", outDir + ".train")
-	line += "\t" + tmp_line
-	header += "\t" + tmp_head
+	#make_predictions(this_scores, eval_scoreF, all_scoreF, training_p,  training_n, number_of_cores, use_random_forest, outDir + ".train", gm.scoreCalc, mode)
+	#sys.exit() # itnegrate Fa without bugs then continue
+>>>>>>> f25ce2744baec522112556974599dfdca864fd17
+
+
+	#tmp_line, tmp_head = CS.clustering_evaluation(train_comp, "Train", outDir + ".train")
+	#train_num_ppis = CS.lineCount(outDir + ".train.pred.txt")
+	#train_num_comp = CS.lineCount(outDir + ".train.clust.txt")
+	#line += "%s\t%i\t%i" % (feature_combination, train_num_ppis, train_num_comp)
+	#header += "Train num pred PPIs\tTrain num pred clust"
+	#line += "\t" + tmp_line
+	#header += "\t" + tmp_head
+	#tmp_line, tmp_head = CS.clustering_evaluation(holdout_comp, "Holdout", outDir + ".train")
+	#line += "\t" + tmp_line
+	#header += "\t" + tmp_head
 
 	# if FA works make initial eval and see it works
 	# print header + "\n" + line
 	# sys.exit()
 
+<<<<<<< HEAD
 	"""
 #	make_predictions(this_scores, eval_scoreF, all_scoreF, all_p,  all_n, number_of_cores, use_random_forest, outDir )
 	tmp_line, tmp_head = CS.clustering_evaluation(all_comp, "All", outDir )
 	all_num_ppis = CS.lineCount(outDir + ".pred.txt")
 	all_num_comp = CS.lineCount(outDir + ".clust.txt")
+=======
+
+
+	clusterFileoutDir = make_predictions(this_scores, eval_scoreF, all_scoreF, all_p,  all_n, number_of_cores, use_random_forest, outDir, FA, mode)
+	tmp_line, tmp_head = CS.clustering_evaluation(all_comp, "All", clusterFileoutDir[1])
+	all_num_ppis = CS.lineCount(clusterFileoutDir[0])
+	all_num_comp = CS.lineCount(clusterFileoutDir[1])
+>>>>>>> f25ce2744baec522112556974599dfdca864fd17
 	line += "\t%i\t%i" % (all_num_ppis, all_num_comp)
 	header += "\tAll num pred PPIs\tAll num pred clust"
 	line += "\t" + tmp_line
@@ -207,48 +229,142 @@ def benchmark():
 	for i in range(len(line)):
 		print "%s\t%s" % (header[i], line[i])
 
-def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, outDir, fun_anno=""):
+def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, outDir, fun_anno, mode):
 	scoreCalc, scores_to_keep = readTable(fc, train_scoreF, gs=(pos | neg))
+<<<<<<< HEAD
 	scoreCalc.addLabels(pos, neg, True)
+=======
+
+	scoreCalc.addLabels(pos, neg)
+>>>>>>> f25ce2744baec522112556974599dfdca864fd17
 	scoreCalc.rebalance(ratio=5)
+	fun_anno.addLabels(pos,neg)
 
 	#instead of predicting only experimental predict: Exp, FA, and EXP+FA
 	#scoreCalc.merge_singe_ScoreCalc(FA_scorecalc)
-	#gene mane to file
+	#gene name to file
 	#genemane.scoreclacl.toString()
-	#predicts using experiment only
-	CS.predictInteractions(scoreCalc, outDir, use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
 
+	if mode == "exp":
+	#predicts using experiment only
+<<<<<<< HEAD
+	CS.predictInteractions(scoreCalc, outDir, use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+=======
+>>>>>>> f25ce2744baec522112556974599dfdca864fd17
+
+		CS.predictInteractions(scoreCalc, outDir + ".exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+		outDir = outDir + ".exp"
 
 
 	#predicts using fun_anno only
 	# either switch file rad in memory FA data
 	# or write FA data as file and use it as input
-	#
-	#CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+	if mode == "fa":
+
+		CS.predictInteractions(fun_anno, outDir + ".fa", use_rf, num_cores, scoreF=all_scoreF, fun_anno_toadd=fun_anno, verbose=True, fs=scores_to_keep, mode="fa", score_cutoff=0)
+		outDir = outDir + ".fa"
+
+
 
 	#predict using both functional annotation and exp
 	# merge scorecalc obj
 	# and add FA scores to prediction scores
-	# 	CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
+	if mode == "merge":
+		scoreCalc.merge_singe_ScoreCalc(fun_anno,"l")
+		outDir = outDir + ".merge"
+		CS.predictInteractions(scoreCalc, outDir , use_rf, num_cores, scoreF=all_scoreF, fun_anno_toadd=fun_anno, verbose=True, fs = scores_to_keep, mode="merge")
 
-	# collect the three rpedicted networks and do merging operation: (EXP union EXP_FA) - (FA - (EXP_FA)) # if the networks are sets you can write (exp | exp_fa) - (fa - exp_fa)
+	# collect the three predicted networks and do merging operation: (EXP union EXP_FA) - (FA - (EXP_FA)) # if the networks are sets you can write (exp | exp_fa) - (fa - exp_fa)
 	# be careful to not lose scoring for machine learning method for example EXP predicts A\tB\tS1 and EXP_FA predicts A\tB\tS2 take score S1
 
+<<<<<<< HEAD
 #	scoreCalc.merge_singe_ScoreCalc(fun_anno)
 	CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
 
+=======
+>>>>>>> f25ce2744baec522112556974599dfdca864fd17
 
+	#predict protein complexes using PPIs excluding PPIs only from functional evidence (merged + exp - FA)
+	if mode == "final":
+		#predict PPIs using only exp data:
+		CS.predictInteractions(scoreCalc, outDir + ".exp", use_rf, num_cores, scoreF=all_scoreF, verbose=True,
+							   fs=scores_to_keep)
+		outDirExp = outDir + ".exp.pred.txt"
+
+		#predict PPIs using Functional evidence only
+		CS.predictInteractions(fun_anno, outDir + ".fa", use_rf, num_cores, scoreF=all_scoreF, fun_anno_toadd=fun_anno,
+						   verbose=True, fs=scores_to_keep, mode="fa", score_cutoff=0)
+		outDirFA = outDir + ".fa.pred.txt"
+
+		#predict PPIs using merged data: functional evidence plus exp
+		scoreCalc.merge_singe_ScoreCalc(fun_anno, "l")
+		CS.predictInteractions(scoreCalc, outDir + ".merge", use_rf, num_cores, scoreF=all_scoreF, fun_anno_toadd=fun_anno,
+						   verbose=True, fs=scores_to_keep, mode="merge")
+		outDirMerged = outDir + ".merge.pred.txt"
+
+		finalPPIsDict = {}
+
+		functionalEvidencePPIsDict = {}
+
+		#read exp based PPIs into finalPPIsDict
+		with open(outDirExp) as fp:
+			for line in fp:
+				proteinA, proteinB, score = line.split()
+				edge = "\t".join(sorted([proteinA, proteinB]))
+				if edge not in finalPPIsDict:
+					finalPPIsDict[edge] = score
+
+		#read functional evidence based PPIs into functionalEvidencePPIsDict
+		with open(outDirFA) as fp:
+			for line in fp:
+				proteinA, proteinB, score = line.split()
+				edge = "\t".join(sorted([proteinA, proteinB]))
+				if edge not in finalPPIsDict:
+					functionalEvidencePPIsDict[edge] = score
+
+		#read merged PPIs and if the PPIs only comes from functional evidence, then delete it.
+		with open(outDirMerged) as fp:
+			for line in fp:
+				proteinA, proteinB, score = line.split()
+				edge = "\t".join(sorted([proteinA, proteinB]))
+				if edge not in functionalEvidencePPIsDict:
+					finalPPIsDict[edge] = score
+
+		outDir = outDir + ".final"
+		outFH = open(outDir + ".pred.txt", "w")
+
+		for key in finalPPIsDict:
+			outFH.write(key)
+			outFH.write("\t")
+			outFH.write(finalPPIsDict[key])
+			outFH.write("\n")
+			#eachLine = "\t".join(key, finalPPIsDict[key])
+			#outFH.write("\n".join(eachLine))
+
+		outFH.close()
+
+	#predict protein complexes from the PPIs file using CLusterOne algorithm...
 	predF = "%s.pred.txt" % (outDir)
-	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+	clustering_CMD = "java -jar /Users/lucasminghu/Desktop/EPIC_08_02_2017/EPIC/src/ClusterOne/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
+	print (clustering_CMD)
 	os.system(clustering_CMD)
+	print ("debugging here!")
+	print (outDir + ".pred.txt")
+
+	return (outDir + ".clust.txt", outDir + ".pred.txt")
 
 
 
 def main():
 #	cut_table()
 #	make_ref_data()
-	benchmark()
+	gm = CS.Genemania("6239")
+	#print gm
+	sc = gm.getScoreCalc()
+	#print sc
+	#print sc.IndexToPpi
+	#sys.exit()
+	benchmark(sc, "final")
 #	cluster_overlapp()
 #	calc_chunkscors()
 #	calculate_allscores()
@@ -258,3 +374,5 @@ if __name__ == "__main__":
 		main()
 	except KeyboardInterrupt:
 		pass
+
+	#11000100 (MI, Bayes, PCC+N)
