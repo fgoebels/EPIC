@@ -689,7 +689,55 @@ def main():
 # 	reza_overlap()
 #	benchmark()
 #	mk_overlapGraph()
-	make_ref("/Users/florian/workspace/scratch/EPIC_out/input/elution_profiles/MSB/","6239")
+#	make_ref("/Users/florian/workspace/scratch/EPIC_out/input/elution_profiles/MSB/","6239")
+	EPIC_prepare_prediction_data()
+
+def EPIC_prepare_prediction_data():
+	elutions_file_dir, num_cores, outDir = sys.argv[1:]
+	num_cores = int(num_cores)
+	scores = [CS.MutualInformation(2), CS.Bayes(2), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5),
+			  CS.Pearson(), CS.Apex()]
+	scores = []
+	foundprots, elution_datas = CS.load_data(elutions_file_dir, scores)
+	sys.exit()
+
+	def print_ppis(fh, ppis, label):
+		for ppi in ppis:
+			print >> fh, "%s\t%s" % (ppi, label)
+	training_p, training_n, all_p, all_n, holdout_complexes, training_complexes, all_complexes = CS.create_goldstandard("6239", foundprots)
+
+	outFH = open(outDir + "train.gs.txt", "w")
+	print_ppis(outFH, training_p, "positive")
+	print_ppis(outFH, training_n, "negative")
+	outFH.close()
+
+	outFH = open(outDir + "all.gs.txt", "w")
+	print_ppis(outFH, all_p, "positive")
+	print_ppis(outFH, all_n, "negative")
+	outFH.close()
+
+	outFH = open(outDir + "all.comp.txt", "w")
+	print >> outFH, all_complexes.to_string()
+	outFH.close()
+
+	outFH = open(outDir + "train.comp.txt", "w")
+	print >> outFH, training_complexes.to_string()
+	outFH.close()
+
+	outFH = open(outDir + "holdout.comp.txt", "w")
+	print >> outFH, holdout_complexes.to_string()
+	outFH.close()
+
+	sys.exit()
+
+	scoreCalc = CS.CalculateCoElutionScores()
+	scoreCalc.addLabels(all_p, all_n)
+	scoreCalc.calculate_coelutionDatas(elution_datas, scores, outDir + "all", num_cores)
+
+	outFH = open(outDir + "eval.scores.txt", "w")
+	scoreCalc.toTable(fh = outFH, labels=False)
+	outFH.close()
+
 
 def make_ref(e_file_dir, taxid):
 	foundprots, elution_datas = CS.load_data(e_file_dir, [])

@@ -390,14 +390,11 @@ class Clusters():
 			for m, reference_cluster in enumerate(reference.complexes):
 				overlap = len(self.complexes[predicted_cluster] & reference.complexes[reference_cluster])
 				overlap_mat[n,m] = overlap
-<<<<<<< HEAD
 		if np.sum(overlap_mat) == 0:
 			return 0
 		else:
 			return np.sum(overlap_mat.max(axis=0))/np.sum(overlap_mat)
-=======
-		return np.sum(overlap_mat.max(axis=0))/np.sum(overlap_mat) ##problem??
->>>>>>> f25ce2744baec522112556974599dfdca864fd17
+
 
 	def acc(self, reference, sn = None, ppv = None):
 		if sn == None: sn = self.sensitivity(reference)

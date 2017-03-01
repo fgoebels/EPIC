@@ -139,11 +139,7 @@ def benchmark(FA, mode):
 	number_of_cores = int(number_of_cores)
 	for i, feature_selection in enumerate(feature_combination):
 		if feature_selection == "1": this_scores.append(scores[i])
-<<<<<<< HEAD
-	this_scores = [CS.Bayes(3)]
-=======
-	print ("score is coming")
->>>>>>> f25ce2744baec522112556974599dfdca864fd17
+
 	print this_scores
 
 
@@ -168,7 +164,7 @@ def benchmark(FA, mode):
 	header = ""
 	line = ""
 
-<<<<<<< HEAD
+
 #	gm = CS.Genemania("6239")
 #	gm_scoreC = gm.scoreCalc
 
@@ -206,14 +202,13 @@ def benchmark(FA, mode):
 	tmp_line, tmp_head = CS.clustering_evaluation(all_comp, "All", outDir )
 	all_num_ppis = CS.lineCount(outDir + ".pred.txt")
 	all_num_comp = CS.lineCount(outDir + ".clust.txt")
-=======
 
 
 	clusterFileoutDir = make_predictions(this_scores, eval_scoreF, all_scoreF, all_p,  all_n, number_of_cores, use_random_forest, outDir, FA, mode)
 	tmp_line, tmp_head = CS.clustering_evaluation(all_comp, "All", clusterFileoutDir[1])
 	all_num_ppis = CS.lineCount(clusterFileoutDir[0])
 	all_num_comp = CS.lineCount(clusterFileoutDir[1])
->>>>>>> f25ce2744baec522112556974599dfdca864fd17
+
 	line += "\t%i\t%i" % (all_num_ppis, all_num_comp)
 	header += "\tAll num pred PPIs\tAll num pred clust"
 	line += "\t" + tmp_line
@@ -231,12 +226,8 @@ def benchmark(FA, mode):
 
 def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, outDir, fun_anno, mode):
 	scoreCalc, scores_to_keep = readTable(fc, train_scoreF, gs=(pos | neg))
-<<<<<<< HEAD
 	scoreCalc.addLabels(pos, neg, True)
-=======
 
-	scoreCalc.addLabels(pos, neg)
->>>>>>> f25ce2744baec522112556974599dfdca864fd17
 	scoreCalc.rebalance(ratio=5)
 	fun_anno.addLabels(pos,neg)
 
@@ -247,11 +238,6 @@ def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, 
 
 	if mode == "exp":
 	#predicts using experiment only
-<<<<<<< HEAD
-	CS.predictInteractions(scoreCalc, outDir, use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
-=======
->>>>>>> f25ce2744baec522112556974599dfdca864fd17
-
 		CS.predictInteractions(scoreCalc, outDir + ".exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
 		outDir = outDir + ".exp"
 
@@ -276,13 +262,6 @@ def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, 
 
 	# collect the three predicted networks and do merging operation: (EXP union EXP_FA) - (FA - (EXP_FA)) # if the networks are sets you can write (exp | exp_fa) - (fa - exp_fa)
 	# be careful to not lose scoring for machine learning method for example EXP predicts A\tB\tS1 and EXP_FA predicts A\tB\tS2 take score S1
-
-<<<<<<< HEAD
-#	scoreCalc.merge_singe_ScoreCalc(fun_anno)
-	CS.predictInteractions(scoreCalc, outDir + "exp" , use_rf, num_cores, scoreF=all_scoreF, verbose=True, fs = scores_to_keep)
-
-=======
->>>>>>> f25ce2744baec522112556974599dfdca864fd17
 
 	#predict protein complexes using PPIs excluding PPIs only from functional evidence (merged + exp - FA)
 	if mode == "final":

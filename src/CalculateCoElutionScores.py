@@ -117,6 +117,7 @@ class ElutionData():
 	def loadElutionData(self, elutionProfileF):
 		elutionProfileFH = open(elutionProfileF)
 		elutionProfileFH.readline()
+		seqrch_engine = elutionProfileF.split(os.sep)[-2]
 		i = 0
 		elutionMat = []
 		prot2Index = {}
