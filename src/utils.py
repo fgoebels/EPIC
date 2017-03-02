@@ -15,7 +15,7 @@ from matplotlib_venn import venn3
 import glob
 import random as re
 import fs as fs
-
+import itertools
 
 
 def getOverlapp(complexesA, complexesB):
@@ -90,6 +90,10 @@ def reza_overlap():
 		plt.title(tmt[j], fontsize=14)
 		plt.savefig("/Users/florian/workspace/scratch/%s.pdf" % tmt[j], bbox_inches="tight")
 		plt.close()
+
+
+
+
 
 
 
@@ -168,85 +172,50 @@ def gs_cluster_overlapp():
 	plt.savefig("/Users/florian/workspace/scratch/EPIC_out/GS_p_val.pdf")
 	plt.close()
 
-def epic_read_eval(fs_eval_F):
-	def norm_score(scores, i):
-		min_score = min(scores[:,i])
-		max_score = max(scores[:,i])
-		for j in range(len(scores[:,i])):
-			scores[j, i]  = (scores[j,i]-min_score)/(max_score-min_score)
-	fs_eval_FH = open(fs_eval_F)
-	vals = []
-	fs = []
-	header = fs_eval_FH.readline().strip().split("\t")[7:]
+def epic_read_eval(fs_eval_Fs):
 
-	for line in fs_eval_FH:
-		line = line.rstrip().split("\t")
-		vals.append(map(float, line[7:]))
-		fs.append(line[0])
-	fs_eval_FH.close()
+	def norm_score(scores, columns):
+		for i in columns:
+			min_score = min(scores[:,i])
+			max_score = max(scores[:,i])
+			for j in range(len(scores[:,i])):
+				scores[j, i]  = (scores[j,i]-min_score)/(max_score-min_score)
+
+	vals= []
+	fs = []
+	header = ""
+	for fs_eval_F in fs_eval_Fs:
+		fs_eval_FH = open(fs_eval_F)
+		param = "-".join(fs_eval_F.split(os.sep)[-1].split(".")[0:2])
+		header = fs_eval_FH.readline().strip().split("\t")[19:]
+
+		print fs_eval_F
+		for line in fs_eval_FH:
+			line = line.rstrip().split("\t")
+			vals.append(map(float, line[19:]))
+			fs.append("%s-%s" % (param, line[0]))
+
+		fs_eval_FH.close()
+
 
 	vals = np.array(vals)
 	zvals = zscore(vals)
 #	zvals = copy.copy(vals)
-#	norm_score(zvals, 0)
-#	norm_score(zvals, 1)
+#	norm_score(zvals, [0,1])
+#	norm_score(zvals, range(10))
 
 	return header, fs, vals, zvals
 
-def EPICFS_eval(fs_eval_F="", verbose=True, filter=True):
-	if fs_eval_F =="": fs_eval_F = sys.argv[1]
-
-	header, fs, vals = epic_read_eval(fs_eval_F)
-
-	if filter:
-		sel_vals = list(np.where(vals[:, 1] >= 100)[0])
-		vals = vals[sel_vals,]
-
-	best_fs = []
-
-	for i in range(len(header)):
-		max_index = np.argmax(np.array(vals[:,i]))
-		pred_comp_val = str(int(vals[max_index, 1]))
-		best_fs.append(fs[max_index])
-
-		if not verbose:continue
-		if i <=1:
-			print "%i (%s)\t%s" % (int(vals[max_index, i]), pred_comp_val, fs[max_index])
-		else:
-			print "%.3f (%s)\t%s" % (vals[max_index,i], pred_comp_val, fs[max_index])
-
-	return best_fs
-
-def get_max_vals(vals, fs, header):
-	out = {}
-	for i in range(len(header)):
-		max_index = np.argmax(np.array(vals[:,i]))
-		out[header[i]] =  vals[max_index,i]
-	return out
-
-def EPIC_count_fs():
-
-	counts = {}
-	best_fs = EPICFS_eval(verbose=False)
-
-	for cat in [[2],[3,4,5],[6],[7],[8],[9],[10],[11,12,13],[14],[15],[16],[17]]:
-		fs = set()
-		for i in cat:
-			fs |= set(best_fs[i].split(","))
-		for feature in fs:
-			if feature not in counts:counts[feature]=0
-			counts[feature]+= 1
-
-	for feature in sorted(counts.keys()):
-		print feature
-
-	for feature in sorted(counts.keys()):
-		print counts[feature]
-
 def EPIC_eval_fs_DIST():
+
 	def getScore(scores):
 		out = []
-		for cat in [[0, 1], [2,9], [3, 4, 5], [6, 7, 8]]:
+#		for cat in [ [1], [2],[3],[4],[5], [6], [7], [9], [9]]:
+#		for cat in [[1], [2, 9], [3, 4], [6], [7]]:
+#		for cat in [[1], [2], [9], [3, 4, 5], [6, 7, 8]]:
+#		for cat in [[1,2,9], [3,4],[6],[7]]:
+#		for cat in [[0], [1, 2, 9],[ 3, 4, 5, [6], [7]]:
+		for cat in [[1, 2, 9], [3,4,5,6], [7]]:
 			out.append(sum(scores[cat])/len(cat))
 		return out
 	def dist(a,b):
@@ -255,47 +224,43 @@ def EPIC_eval_fs_DIST():
 	all_scores = {}
 
 	fs_eval_Files = sys.argv[1:]
-	max_vals = []
-	for fs_eval_F in fs_eval_Files:
-		header, fs, vals, zvals = epic_read_eval(fs_eval_F)
-		fs = np.array(fs)
-#		sel_vals = list(np.where(vals[:, 1] >= 100)[0])
-#		vals = vals[sel_vals,]
-#		zvals = zvals[sel_vals,]
-#		fs = np.array(fs)[sel_vals,]
-		all_scores[fs_eval_F] = (header, fs, vals, zvals)
+
+	header, fs, vals, zvals = epic_read_eval(fs_eval_Files)
+	fs = np.array(fs)
+
+#	filtering feature selection with low number of predicted clusters
+#	sel_vals = list(np.where(vals[:, 1] >= 100)[0])
+#	vals = vals[sel_vals,]
+#	zvals = zvals[sel_vals,]
+#	fs = np.array(fs)[sel_vals,]
 
 
+	this_max_val_fc = []
+	this_max_vals = []
+	max_zvals = []
+	for i in range(len(header)):
+		max_index = np.argmax(np.array(zvals[:, i]))
+		this_max_vals.append( vals[max_index, i])
+		this_max_val_fc.append(fs[max_index])
+		max_zvals.append(zvals[max_index, i])
+	max_vals = np.array(getScore(np.array(max_zvals)))
 
-		this_max_vals = []
-		for i in range(len(header)):
-			max_index = np.argmax(np.array(zvals[:, i]))
-			this_max_vals.append(zvals[max_index, i])
-		max_vals.append(getScore(np.array(this_max_vals)))
-
-	max_vals = np.array(max_vals)
-
-	tmp = []
-	for i in range(max_vals.shape[1]):
-		tmp.append(max(max_vals[:,i]))
-	max_vals = np.array(tmp)
+#	print max_zvals
+#	print max_vals
 
 	scores = {}
-	for score in all_scores:
-		header, fs, vals, zvals = all_scores[score]
-		for i in range(len(fs)):
-			this_f = fs[i]
-			this_vals = getScore(zvals[i,:])
-			this_dist = dist(this_vals,max_vals)
-			scores[(score, this_f)] = this_dist
+	for i in range(len(fs)):
+		this_f = fs[i]
+		this_vals = getScore(zvals[i,:])
+		this_dist = dist(this_vals,max_vals)
+		scores[this_f] = this_dist
 
 	best_dist = min(scores.values())
-	for score, f in scores:
-		header, fs, vals, zvals = all_scores[score]
-		if scores[(score,f)]==best_dist:
-			print score
+	for  f in scores:
+		if scores[f]==best_dist:
 			print f
-			print "\n".join(map(str, vals[np.where(fs == f)[0], :][0]))
+	 		for i in range(len(header)):
+				print "%s\t%s\t%s\t%s" % (header[i], str(this_max_vals[i]), this_max_val_fc[i], str(vals[np.where(fs == f)[0], i][0]))
 
 def EPIC_eval_fs():
 	fs_a, fs_b, fs_eval_F = sys.argv[1:]
@@ -382,12 +347,15 @@ def EPIC_cor():
 		fs_eval_FH.readline()
 		for line in fs_eval_FH:
 			line = line.rstrip().split("\t")
-			vals.append(map(float, line[7:]))
+			if (int(line[2])) < 100: continue
+			vals.append(map(float, line[1:19]))
+	#		if (int(line[20])) < 100: continue
+	#		vals.append(map(float, line[19:]))
 			fs.append(line[0])
 		fs_eval_FH.close()
 	vals = np.array(vals)
 	for row in np.corrcoef(np.transpose(vals)):
-		print "\t".join(map(str, row))
+		print "\t".join(map("{:.2f}".format, row))
 
 
 def exp_comb():
@@ -508,6 +476,41 @@ def count_enrichments():
 	print >> outFH, "\n".join(out)
 	outFH.close()
 
+def mk_overlapGraph():
+	clustF, outDir = sys.argv[1:]
+
+	def simco(a, b):
+		tmpa = set(a)
+		tmpb = set(b)
+		return len(tmpa & tmpb) / (min(len(tmpa), len(tmpb)))
+
+
+	def overlap(a, b):
+		tmpa = set(a)
+		tmpb = set(b)
+		overlap = math.pow((len(tmpa & tmpb)), 2) / (len(tmpa) * len(tmpb))
+		return overlap
+
+	comp = GS.Clusters(False)
+	comp.read_file(clustF)
+
+	simco_outF = open(outDir + ".simco.edges.txt", "w")
+	overlap_outF = open(outDir + ".overlap.edges.txt", "w")
+
+	for i, comp_i in comp.complexes.items():
+		for j, comp_j in  comp.complexes.items():
+			if j <= i: continue
+			this_simco =  simco(comp_i, comp_j)
+			if this_simco > 0:
+				print >> simco_outF, "%i\t%i\t%f" % (i, j, this_simco)
+			this_overlap = overlap(comp_i, comp_j)
+			if this_simco > 0:
+				print >> overlap_outF, "%i\t%i\t%f" % (i, j, this_overlap)
+
+	simco_outF.close()
+	overlap_outF.close()
+
+
 def orthmap_complexes():
 	compF, mapF, outF = sys.argv[1:]
 	comps = GS.Clusters(False)
@@ -605,12 +608,77 @@ def bac_EPIC():
 #	gs = GS.Goldstandard_from_Complexes("Intact")
 #	gs.make_reference_data([GS.Intact_clusters(species="escherichia_coli"), GS.QuickGO(taxid="83333")], orthmapper, found_prots=foundprots)
 
+def lineCount(filename):
+	f = open(filename, "r")
+	i = 0
+	for l in f:
+		i += 1
+	f.close()
+	return i
 
+def benchmark():
+	dir,   trainingF, holdoutF, allF, outdir = sys.argv[1:]
+
+	lst = list(itertools.product([0, 1], repeat=8))
+	clfs = ["SVM", "RF"]
+	datasets = ["MSB", "SEQ", "MaxQMS1", "MaxQMS2"]
+
+	holdout_comp = GS.Clusters(False)
+	holdout_comp.read_file(holdoutF)
+
+	train_comp = GS.Clusters(False)
+	train_comp.read_file(trainingF)
+
+	all_comp = GS.Clusters(False)
+	all_comp.read_file(allF)
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5),
+			  CS.Pearson(), CS.Apex()]
+
+	for clf in clfs:
+		for ds in datasets:
+			head = ""
+			out_data = ""
+			for fc in lst:
+				fc = "".join(map(str,fc))
+				if fc == "00000000": continue
+				this_scores = []
+				for i, feature_selection in enumerate(fc):
+					if feature_selection == "1": this_scores.append(scores[i].name)
+				this_scores = ",".join(this_scores)
+
+				curdir = "%s%s.%s.%s" % (dir, fc, clf, ds)
+				if os.path.isfile(curdir + ".train.pred.txt") == False:
+					print "no file for %s.train.pred.txt" % curdir
+					continue
+				if lineCount(curdir + ".train.pred.txt") == 0:
+					print "no predicted ppis for %s.train.pred.txt" % curdir
+					continue
+
+				if os.path.isfile(curdir + ".all.pred.txt") == False:
+					print "no file for %s.all.pred.txt" % curdir
+					continue
+				if lineCount(curdir + ".all.pred.txt") == 0:
+					print "no predicted ppis for %s.all.pred.txt" % curdir
+					continue
+
+
+				train_num_ppis = CS.lineCount(curdir + ".train.pred.txt")
+				train_num_comp = CS.lineCount(curdir + ".train.clust.txt")
+				all_num_ppis = CS.lineCount(curdir + ".all.pred.txt")
+				all_num_comp = CS.lineCount(curdir + ".all.clust.txt")
+
+				train_line, train_head = CS.clustering_evaluation(train_comp, "Train", curdir + ".train")
+				holdout_line, holdout_head = CS.clustering_evaluation(holdout_comp, "Holdout", curdir + ".train")
+				all_line, all_head = CS.clustering_evaluation(all_comp, "All", curdir + ".all")
+				if head == "": head = "Feature set\tTrain Pred PPI\tTrain Pred Clusters\t%s\t%s\tAll Pred PPI\tAll Pred Clusters\t%s" % (train_head, holdout_head, all_head)
+				out_data +=  "\n%s\t%i\t%i\t%s\t%i\t%i\t%s" % (this_scores, train_num_ppis, train_num_comp, "\t".join([train_line, holdout_line]), all_num_ppis, all_num_comp, all_line)
+			outF = open("%s%s.%s.eval.txt" % ( outdir, clf, ds), "w")
+			print >> outF, head + out_data
+			outF.close()
 
 
 def main():
 #	EPIC_cor()
-#	EPICFS_eval()
 #	EPIC_count_fs()
 #	EPIC_eval_fs()
 #	EPIC_eval_fs_DIST()
@@ -618,11 +686,66 @@ def main():
 #	bac_EPIC()
 #	orthmap_complexes()
 #	count_enrichments()
-	reza_overlap()
+# 	reza_overlap()
+#	benchmark()
+#	mk_overlapGraph()
+#	make_ref("/Users/florian/workspace/scratch/EPIC_out/input/elution_profiles/MSB/","6239")
+	EPIC_prepare_prediction_data()
+
+def EPIC_prepare_prediction_data():
+	elutions_file_dir, num_cores, outDir = sys.argv[1:]
+	num_cores = int(num_cores)
+	scores = [CS.MutualInformation(2), CS.Bayes(2), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5),
+			  CS.Pearson(), CS.Apex()]
+	scores = []
+	foundprots, elution_datas = CS.load_data(elutions_file_dir, scores)
 	sys.exit()
 
-#	foundprots, elution_datas = CS.load_data("/Users/florian//workspace/scratch/EPIC_out/input/elution_profiles/MSB", [])
-#	corum = GS.CORUM()
+	def print_ppis(fh, ppis, label):
+		for ppi in ppis:
+			print >> fh, "%s\t%s" % (ppi, label)
+	training_p, training_n, all_p, all_n, holdout_complexes, training_complexes, all_complexes = CS.create_goldstandard("6239", foundprots)
+
+	outFH = open(outDir + "train.gs.txt", "w")
+	print_ppis(outFH, training_p, "positive")
+	print_ppis(outFH, training_n, "negative")
+	outFH.close()
+
+	outFH = open(outDir + "all.gs.txt", "w")
+	print_ppis(outFH, all_p, "positive")
+	print_ppis(outFH, all_n, "negative")
+	outFH.close()
+
+	outFH = open(outDir + "all.comp.txt", "w")
+	print >> outFH, all_complexes.to_string()
+	outFH.close()
+
+	outFH = open(outDir + "train.comp.txt", "w")
+	print >> outFH, training_complexes.to_string()
+	outFH.close()
+
+	outFH = open(outDir + "holdout.comp.txt", "w")
+	print >> outFH, holdout_complexes.to_string()
+	outFH.close()
+
+	sys.exit()
+
+	scoreCalc = CS.CalculateCoElutionScores()
+	scoreCalc.addLabels(all_p, all_n)
+	scoreCalc.calculate_coelutionDatas(elution_datas, scores, outDir + "all", num_cores)
+
+	outFH = open(outDir + "eval.scores.txt", "w")
+	scoreCalc.toTable(fh = outFH, labels=False)
+	outFH.close()
+
+
+def make_ref(e_file_dir, taxid):
+	foundprots, elution_datas = CS.load_data(e_file_dir, [])
+	CS.create_goldstandard(taxid, foundprots)
+
+
+
+"""
 	for name, comp_ref in [("corum", GS.CORUM()), ("intact", GS.Intact_clusters()), ("go", GS.QuickGO("9606"))]:
 		comp_ref.need_to_be_mapped = False
 		outFH = open("/Users/florian/workspace/scratch/EPIC_out/%s.raw.comp.txt" % name, "w")
@@ -634,13 +757,21 @@ def main():
 		print >> outFH, gs.complexes.to_string()
 		outFH.close()
 
-	_, _, _, _, _, _, all_comp	= CS.create_goldstandard("9606","")
+	_, _, all_p, all_n, _, _, all_comp	= CS.create_goldstandard("9606","")
 
+
+	outFH = open("/Users/florian/workspace/scratch/EPIC_out/combined.all_p.txt", "w")
+	print >> outFH, "\n".join(all_p)
+	outFH.close()
+
+	outFH = open("/Users/florian/workspace/scratch/EPIC_out/combined.all_n.txt", "w")
+	print >> outFH, "\n".join(all_n)
+	outFH.close()
 
 	outFH = open("/Users/florian/workspace/scratch/EPIC_out/combined.comp.txt", "w")
 	print >> outFH, all_comp.to_string()
 	outFH.close()
-
+"""
 
 
 if __name__ == "__main__":
