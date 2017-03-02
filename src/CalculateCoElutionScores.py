@@ -596,7 +596,7 @@ class Genemania:
 		for i, f_evidence in enumerate(self.functionalEvidences):
 			this_evidence_scores = {}
 			self.scoreCalc.header.append("GeneMania_%s" % f_evidence)
-			for fp in self.files[0:3]:                        #for de-bugging, I only used the first three files
+			for fp in self.files:                        #for de-bugging, I only used the first three files
 				filename = str(fp.split('/')[-1])
 				if filename.startswith(f_evidence):
 					print "Processing: %s" % (filename)
