@@ -210,7 +210,7 @@ def benchmark(FA, mode):
 	all_num_comp = CS.lineCount(clusterFileoutDir[1])
 
 	line += "\t%i\t%i" % (all_num_ppis, all_num_comp)
-	header += "\tAll num pred PPIs\tAll num pred clust"
+	header += "\tAll num pred clust\tAll num pred PPIs"
 	line += "\t" + tmp_line
 	header += "\t" + tmp_head
 
@@ -306,8 +306,10 @@ def make_predictions(fc, train_scoreF, all_scoreF, pos, neg, num_cores, use_rf, 
 			for line in fp:
 				proteinA, proteinB, score = line.split()
 				edge = "\t".join(sorted([proteinA, proteinB]))
-				if edge not in functionalEvidencePPIsDict:
+				if (edge not in functionalEvidencePPIsDict) and (edge not in finalPPIsDict):
 					finalPPIsDict[edge] = score
+				if edge in finalPPIsDict:
+					finalPPIsDict[edge] = max(score, finalPPIsDict[edge])
 
 		outDir = outDir + ".final"
 		outFH = open(outDir + ".pred.txt", "w")
