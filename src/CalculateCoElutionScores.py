@@ -15,14 +15,11 @@ from sklearn.model_selection import  cross_val_predict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import RFECV
-import matplotlib.pyplot as plt
-import inspect
-import os
+
 from sklearn import svm
 from sklearn import metrics
 import random
 import multiprocessing as mp
-import GoldStandard as GS
 
 # The following imported libraries are for intergrating GeneMANIA data as Functional Evidence
 import glob
@@ -65,11 +62,9 @@ prot2profile = {}
 ppiList = []
 
 def lineCount(filename):
-	f = open(filename, "r+")
-	buf = mmap.mmap(f.fileno(), 0)
 	lines = 0
-	readline = buf.readline
-	while readline():
+	fh = open(filename)
+	for l in fh:
 		lines += 1
 	return lines
 
@@ -117,7 +112,6 @@ class ElutionData():
 	def loadElutionData(self, elutionProfileF):
 		elutionProfileFH = open(elutionProfileF)
 		elutionProfileFH.readline()
-		seqrch_engine = elutionProfileF.split(os.sep)[-2]
 		i = 0
 		elutionMat = []
 		prot2Index = {}
@@ -224,34 +218,6 @@ def normalize_fracs(arr, norm_rows=True, norm_cols=True):
 # each class needs to have two central functions: getScores and calculateScore
 # whereas the first one allows the method to prepare the elution data how ever it needs and return int as two objects
 # and the later one return the score for two given score objects
-
-
-# @author: Florian Goebels
-# Calculates functional similarity based on GO terms
-class GOSim(object):
-
-	objs = "" 
-	def __init__(self, gene_anno_F, onto_F):
-		self.name = ["Sim_CC", "Sim_BP", "Sim_MF"]
-		self.parallel = False
-#		if GOSim.objs == "":
-#			GOSim.objs = load_semantic_similarity(onto_F, gene_anno_F, "C:2.4,P:3.5,F:3.3", "IEA")
-
-	def getScores(self, a, b, elutionData):
-		return (a,b)
-
-	def calculateScore(self, a, b):
-		out = []
-		domain_def = {'C':'Cellular Component', 'P':'Biological Process', 'F':'Molecular Function'}
-		for domain in domain_def:
-			score = GOSim.objs[domain]._semantic_similarity(a, b)[0]
-			if score is None: score = 0
-			out.append(score)
-		return out
-
-	def clear(self):
-		return True
-
 #Fueatures that can be calcuated in parrallel have always a static helper function, since pythons multiprocessing package does not support pickeling of objects
 
 # @ author Florian Goebels
@@ -285,20 +251,6 @@ class Apex(object):
 # @ author Florian Goebels
 # returns bayes correlation for two proteins
 # reference on how the score is calculated is here: http://www.perkinslab.ca/sites/perkinslab.ca/files/Bayes_Corr.R
-"""
-def getRmat(a,b):
-	dims = np.matrix([a, b]).shape
-	r_cro_mat_object = robjects.r.matrix(robjects.IntVector(np.append(a, b)), nrow=dims[1], ncol=dims[0])
-	r_cro_mat = r_cro_mat_object.transpose()
-	return r_cro_mat
-
-def calculateScoreBayes(a,b):
-	r_cro_mat = getRmat(a,b)
-	global current_bayes_cor
-	return  current_bayes_cor (r_cro_mat)[1]
-"""
-
-
 def calculateScoreBayes(a,b):
 	global Bayes_cor_Mat
 	index, a = a
@@ -329,7 +281,7 @@ class Bayes:
 			#TODO throw error instead of print
 		elutionMat = elutionData.elutionMat
 		dims = elutionMat.shape
-		r_mat = robjects.r.matrix(robjects.IntVector(elutionMat.flatten().tolist()), nrow=dims[0], ncol=dims[1])
+		r_mat = robjects.r.matrix(robjects.FloatVector(elutionMat.flatten().tolist()), nrow=dims[0], ncol=dims[1])
 		bayes_mat = np.array(current_bayes_cor(r_mat))
 		Bayes_cor_Mat.append(bayes_mat)
 		index = len(Bayes_cor_Mat) - 1
@@ -425,18 +377,7 @@ class Poisson:
 			prot2profile[fname][prot] = (index, elutionData.getProtIndex(prot))
 
 	def setPoisson_cor_Mat(self, elutionData):
-#		Poisson_cor_MatTasks = []
-#		global num_cores
-#		num_jobs = num_cores
-#		for i in range(num_jobs):
-#			Poisson_cor_MatTasks.append(tuple([traver_corr, tuple([elutionData.elutionMat, int(self.repeat/num_jobs), 'columns', True])]))
-#		p = mp.Pool(num_cores)
-#		tmpMats = p.map(no_queue_worker, Poisson_cor_MatTasks)
-#		p.close()
-#		p.join()
-#
 		global Poisson_cor_Mat
-#		Poisson_cor_Mat = (reduce(operator.add, tmpMats)/self.repeat)
 		Poisson_cor_Mat = traver_corr(elutionData.elutionMat, self.repeat, 'columns', True)
 
 	def clear(self):
@@ -491,8 +432,6 @@ class MutualInformation():
 			numFracs = len(profile)
 			prot_entropy = bin_entropy(len(profile_upper) / numFracs)
 			prot2profile[fname][prot] = (prot_entropy, profile_upper, profile_lower, numFracs)
-
-
 
 	def clear(self):
 		global prot2profile
@@ -576,7 +515,7 @@ class Genemania:
 		# all functional evidence codes in GeneMANIA, excluding "Physical" and "complexes" and "Predicted" to eliminate circularity
 		self.functionalEvidences = ['Co-expression', 'Genetic', 'Other', 'Shared']
 		# ScoreCalc object contains edges and it's associated GeneMANIA scores
-		self.scoreCalc = CalculateCoElutionScores()
+		self.scoreCalc = CalculateCoElutionScores("", "", "", num_cores=1, cutoff=0)
 		# loads all of Worm Gene
 		self.load_genemania()
 
@@ -594,6 +533,8 @@ class Genemania:
 		speciesURL = os.path.join(urlbase, taxoIDspeciesDic[self.taxoID])
 		r = urllib.urlopen(speciesURL).read()
 		soup = BeautifulSoup(r)
+
+#		soup = BeautifulSoup(r, "html.parser")
     
 		table = soup.find('table')
     
@@ -632,7 +573,7 @@ class Genemania:
 			for fp in self.files:                        #for de-bugging, I only used the first three files
 				filename = str(fp.split('/')[-1])
 				if filename.startswith(f_evidence):
-					print "Processing: %s" % (filename)
+#					print "Processing: %s" % (filename)
 					fh = urllib2.urlopen(fp)
 					fh.readline()
 					for line in fh:
@@ -752,42 +693,79 @@ class CalculateCoElutionScores():
 	# this method inits the object
 	# @Param:
 	#		elutionData (optional) specify which data needs to be processed
-	def __init__(self, elutionData="", cutoff = 0.5):
+	def __init__(self, scores, elutionData, outF, num_cores, cutoff = 0.5, verbose=True):
+		self.num_cores = num_cores
+		self.outF = outF
+		self.verbose = verbose
 		self.elutionData = elutionData
 		self.scores = np.array([])
 		self.header = ["ProtA","ProtB"]
 		self.ppiToIndex = {}
 		self.IndexToPpi = {}
-		self.positive = set([])
-		self.negative = set([])
 		self.cutoff = cutoff
+		self.features = scores
+		self.to_predict = 0
+		self.scoreF = ""
+		self.fun_anno=""
 
-	def addLabels(self, positive, negative, filter=False):
-		if filter:
-			self.positive = positive & set(self.ppiToIndex.keys())
-			self.negative = negative & set(self.ppiToIndex.keys())
+		for eD in self.elutionData:
+			for score in self.features:
+				self.header.append("%s.%s" % (eD.name, score.name))
+
+	def add_fun_anno(self, fun_anno):
+		self.fun_anno = fun_anno
+		self.merge(fun_anno, "l")
+
+	def open(self):
+		self.i = 0
+		if self.scoreF != "":
+			self.scoreFH = open(self.scoreF)
+			self.scoreFH.readline() # remove header line
 		else:
-			self.positive = positive
-			self.negative = negative
+			self.to_predict = self.scores.shape[0]
 
-#		for ppi in positive:
-#			if ppi in self.ppiToIndex: self.positive.add(ppi)
+	def has_edge(self, edge):
+		return edge in self.ppiToIndex
 
-		for ppi in positive:
-			if ppi in self.ppiToIndex:
-				self.positive.add(ppi)
+	def get_score(self, edge):
+		if not self.has_edge(edge): return None
+		return self.scores[self.ppiToIndex[edge],:]
 
-#		for ppi in negative:
-#			if ppi in self.ppiToIndex: self.negative.add(ppi)
+	def get_next(self):
+		edge = ""
+		scores = []
+		# check if edge to predicted is in memory or saved on HD
+		if self.scoreF != "":
+			line = self.scoreFH.readline()
+			if line == "": return None, None
+			line = line.rstrip()
+			line = line.split("\t")
+			edge = "\t".join(sorted(line[0:2]))
+			scores = map(float, line[2:])
+			# add functional annotation if given
+			if self.fun_anno!="":
+				to_add = [0]*(len(self.fun_anno.header)-2)
+				if self.fun_anno.has_edge(edge):
+					to_add = self.fun_anno.get_score(edge)
+				scores = np.append(scores, to_add)
+		# Retrive edge and edge scores from local memory
+		else:
+			edge = self.IndexToPpi[self.i]
+			scores = self.scores[self.i,:]
+			self.i+=1
 
+		return edge, np.array(scores)
+
+	def close(self):
+		if self.scoreF != "":
+			self.scoreFH.close()
 
 	# @author: Florian Goebels
 	# this method combines who CalculateCoElutionScores objects onto one by comping the toMerge object into the self object
 	# @Param:
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined with self object
-	#		mode donates how to merge the sets, left, right, union, or intersect
-
-	def merge_singe_ScoreCalc(self, toMerge, mode):
+	#		mode donates how to merge the sets, left (l), right (r), union (u), or  (i)
+	def merge(self, toMerge, mode):
 		allPPIs = ""
 		if mode == "u":
 			allPPIs = set(self.ppiToIndex.keys()) | set(toMerge.ppiToIndex.keys())
@@ -799,9 +777,7 @@ class CalculateCoElutionScores():
 			allPPIs = set(self.ppiToIndex.keys()) & set(toMerge.ppiToIndex.keys())
 
 		numFeature_in_merge = len(toMerge.header)-2
-		#print (toMerge.header)
-		#print ("~~~")
-		#print (self.header)
+
 		numFeature_in_self = len(self.header)-2
 		new_scores = np.zeros((len(allPPIs), numFeature_in_merge + numFeature_in_self))
 
@@ -824,66 +800,72 @@ class CalculateCoElutionScores():
 		self.ppiToIndex = new_ppiToIndex
 		self.IndexToPpi = new_IndexToPpi
 		self.header.extend(toMerge.header[2:])
-		#print ("I am debugging here")
-		#print (new_scores.shape)
 
-	def filter_coelutionscore(self, score_cutoff = 0.5):
-		valid_rows = []
-		dim = self.scores.shape
-		for i in range(dim[0]):
-			for j in range(dim[1]):
-				if self.scores[i][j] > score_cutoff:
-					valid_rows.append(i)
-					break
-#		valid_rows = list(set(np.where(self.scores>score_cutoff)[0]))
-		self.scores = self.scores[valid_rows,:]
-		new_IndexToPpi = {}
-		new_ppiToIndex = {}
-		for i in range(len(valid_rows)):
-			old_index = valid_rows[i]
-			ppi = self.IndexToPpi[old_index]
-			new_ppiToIndex[ppi] = i
-			new_IndexToPpi[i] = ppi
-		self.IndexToPpi = new_IndexToPpi
-		self.ppiToIndex = new_ppiToIndex
+	# @author: Florian Goebels
+	# create co elution table for a given list of scores and ppis
+	# @Param:	
+	#		scoreTypes	a list of co elutoin score objects
+	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
+	def calculateScores(self, toPred, gs=""):
+		task_queue = mp.JoinableQueue()
+		out_queue = mp.Queue()
+		self.scores = []
+		self.ppiToIndex = {}
+		tokeep = gs.get_edges()
+		num_rows = len(tokeep)
+		num_features = len(self.features)*len(self.elutionData)
+		self.scores = np.zeros((num_rows, num_features))
+		for i in range(self.num_cores):  # remove one core since listener is a sapareted process
+			mp.Process(target=getScore, args=(task_queue, out_queue)).start()
+		outFH = open(self.outF, "w")
+		print >> outFH, "\t".join(self.header)
+		k = 0
+		ppi_index = 0
+		write_buffer = ""
+		for ppi in toPred:
+			k += 1
+			if k % 100000 == 0:
+				if self.verbose: print(k)
+				outFH.write(write_buffer)
+				outFH.flush()
+				write_buffer = ""
+			i = 0
+			for _ in self.elutionData:
+				for score in self.features:
+					fname = self.header[i+2]
+					task = (ppi, i, fname, score.calculateScore)
+					task_queue.put(task)
+					i += 1
+			task_queue.join()
+			ppi_scores = [0]*num_features
+			for _ in range(num_features):
+				score_index, score = out_queue.get()
+				ppi_scores[score_index] = score
+			ppi_scores = np.nan_to_num(np.array(ppi_scores))
 
-	def retrieve_scores(self, scores):
-		scoreNames = set([])
-		for st in scores: scoreNames.add(st.name)
-		to_keep_header = [0,1]
-		to_keep_score = []
-		for i in range(2,len(self.header)):
-			colname = self.header[i]
-			scorename = colname.split(".")[-1]
-			if scorename in scoreNames:
-				to_keep_header.append(i)
-				to_keep_score.append(i-2)
+			if len(list(set(np.where(ppi_scores > self.cutoff)[0]))) > 0:
+				self.to_predict += 1
+				write_buffer +=  "%s\t%s\n" % (ppi, "\t".join(map(str, ppi_scores)))
+				if ppi in tokeep:
+					self.ppiToIndex[ppi] = ppi_index
+					self.IndexToPpi[ppi_index] = ppi
+					self.scores[ppi_index,:] = ppi_scores
+					ppi_index += 1
 
-		self.header = list(np.array(self.header)[to_keep_header])
-		self.scores = self.scores[:,to_keep_score]
-		self.filter_coelutionscore()
+		print >> outFH, write_buffer
+		outFH.close()
+		print("done calcualting co-elution scores")
+		self.scores = self.scores[0:ppi_index,:]
+		for i in range(self.num_cores):
+			task_queue.put('STOP')
+		self.scoreF = self.outF
 
-	def rebalance(self, ratio = 5):
-		if len(self.positive) * ratio > len(self.negative):
-			print("Warning: not enough negative data points in reference to create desired ratio")
-		else:
-			self.negative = set(random.sample(self.negative, len(self.positive)*ratio))
-
-	def merge_list_ScoreCalc(self, toMerge):
-			for sCalc in toMerge:
-					self.merge_singe_ScoreCalc(sCalc)
-
-	def mergeScoreCalc(self, toMerge):
-			if isinstance(toMerge, list):
-				self.merge_list_ScoreCalc(toMerge)
-			else:
-				self.merge_singe_ScoreCalc(toMerge)
 
 	# @ author Florian Goebels
 	# A filter for removing all possible protein pairs when predicting the network form elution data
 	# here we decided to remove all candidate ppis with an Jaccard score of 0, since those interaction do not co-elute in any observed fraction
-	def filter_interactions_Jaccard(self, eData, ppis):
-		print("filtering Jaccard")
+	def filter_interactions(self, eData, ppis):
+		print("filtering")
 		out = set([])
 		del_Jaccard_scores = False
 		global prot2profile
@@ -891,7 +873,6 @@ class CalculateCoElutionScores():
 			this_Jaccard = Jaccard()
 			this_Jaccard.init(eData)
 			del_Jaccard_scores = True
-
 		for ppi in ppis:
 			protA, protB = ppi.split("\t")
 			profileA = prot2profile[eData.name + ".Jaccard"][protA]
@@ -903,152 +884,62 @@ class CalculateCoElutionScores():
 		return out
 
 
-	# @author: Florian Goebels
-	# returns a list with all possible pairs of protein interactions for a given ElutionData object
 	def getAllPairs(self):
-		allprots = self.elutionData.prot2Index.keys()
-		allPPIs = set([])
-		for i in range(len(allprots)):
-			for j in range(i+1, len(allprots)):
-				protA = allprots[i]
-				protB = allprots[j]
-				if protA == protB: continue
-				protA, protB = sorted([protA, protB])
-				allPPIs.add("%s\t%s" % (protA, protB))
-		return allPPIs
-
-	# @author: Florian Goebels
-	# create co elution table for a given list of scores and ppis
-	# @Param:	
-	#		scoreTypes	a list of co elutoin score objects
-	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
-	def calculateScores(self, toPred, elutionDatas, scores, outFile, num_cores, verbose = True):
-		task_queue = mp.JoinableQueue()
-		out_queue = mp.Queue()
-		self.scores = []
-		self.ppiToIndex = {}
-		gs = self.positive | self.negative
-		num_rows = len(gs)
-		if outFile == "": num_rows = 100000
-		num_features = len(scores)*len(elutionDatas)
-		self.scores = np.zeros((num_rows, num_features))
-		for i in range(num_cores):  # remove one core since listener is a sapareted process
-			mp.Process(target=getScore, args=(task_queue, out_queue)).start()
-		if outFile != "":
-			outFH = open(outFile, "w")
-			print >> outFH, "\t".join(self.header)
-		k = 0
-		ppi_index = 0
-		write_buffer = ""
-		for ppi in toPred:
-			k += 1
-			if k % 100000 == 0:
-				if verbose: print(k)
-				if outFile != "":
-					outFH.write(write_buffer)
-					outFH.flush()
-				write_buffer = ""
-			i = 0
-			for _ in elutionDatas:
-				for score in scores:
-					fname = self.header[i+2]
-					task = (ppi, i, fname, score.calculateScore)
-					task_queue.put(task)
-					i += 1
-			task_queue.join()
-			ppi_scores = [0]*num_features #np.frombuffer(out_array.get_obj())
-			for _ in range(num_features):
-				score_index, score = out_queue.get()
-				ppi_scores[score_index] = score
-			ppi_scores = np.nan_to_num(np.array(ppi_scores))
-			if len(list(set(np.where(ppi_scores > self.cutoff)[0]))) > 0:
-				if outFile != "": write_buffer +=  "%s\t%s\n" % (ppi, "\t".join(map(str, ppi_scores)))
-				if ppi in gs or outFile=="":
-					self.ppiToIndex[ppi] = ppi_index
-					self.IndexToPpi[ppi_index] = ppi
-					self.scores[ppi_index,:] = ppi_scores
-					ppi_index += 1
-		if outFile != "":
-			print >> outFH, write_buffer
-			outFH.close()
-		print("done calcualting co-elution scores")
-		self.scores = self.scores[0:ppi_index,:]
-		for i in range(num_cores):
-			task_queue.put('STOP')
-
-
-	def getAllPairs_coelutionDatas(self, elutionDatas):
 		allfilteredPPIs = set([])
-		for elutionData in elutionDatas:
-			print("Filtering: %s" % (elutionData.name))
-			scoreCalc = CalculateCoElutionScores(elutionData)
-			candidatePPis = scoreCalc.getAllPairs()
+		for elution_data in self.elutionData:
+			print("Filtering: %s" % (elution_data.name))
+			allprots = elution_data.prot2Index.keys()
+			candidatePPis = set([])
+			for i in range(len(allprots)):
+				for j in range(i + 1, len(allprots)):
+					protA = allprots[i]
+					protB = allprots[j]
+					if protA == protB: continue
+					protA, protB = sorted([protA, protB])
+					candidatePPis.add("%s\t%s" % (protA, protB))
 			print("Before filtering %i PPIs" % (len(candidatePPis)))
-			filteredPPIs = scoreCalc.filter_interactions_Jaccard(elutionData, candidatePPis)
+			filteredPPIs = self.filter_interactions(elution_data, candidatePPis)
 			del candidatePPis
 			print("After filtering %i PPIs" % (len(filteredPPIs)))
 			allfilteredPPIs |= filteredPPIs
-			del scoreCalc
 		print("Num of PPIs across all data stes after filtering %i" % (len(allfilteredPPIs)))
 		return allfilteredPPIs
 
-	def calculate_coelutionDatas(self, elutionDatas, scores, outDir, num_cores, toPred=""):
-		if toPred == "":
-			toPred = self.getAllPairs_coelutionDatas(elutionDatas)
-		for eD in elutionDatas:
-			for score in scores:
-				self.header.append("%s.%s" % (eD.name, score.name))
-		if outDir == "":
-			self.calculateScores(toPred, elutionDatas, scores, outDir, num_cores)
-		else:
-			self.calculateScores(toPred, elutionDatas, scores, outDir + ".scores.txt", num_cores)
+	def calculate_coelutionDatas(self, gs):
+		toPred = self.getAllPairs()
+		self.calculateScores(toPred, gs)
 
 	# @author: Florian Goebels
 	# prints table
 	# @Param:
 	#		labels print class lable or not
-	def toTable(self, fh="", labels= True):
+	def toTable(self):
 		valid_ppis = set(self.ppiToIndex.keys())
-		if labels: valid_ppis = valid_ppis & (self.positive | self.negative)
 		out = ""
-		if fh!="":
-			print >> fh, "\t".join(self.header)
-		else:
-			out = "\t".join(self.header)
+		out = "\t".join(self.header)
 		for i in range(self.scores.shape[0]):
 			ppi = self.IndexToPpi[i]
 			if ppi not in valid_ppis: continue
 			scores = "\t".join(map(str, self.scores[i, :]))
 			line = "%s\t%s" % (ppi, scores)
-			if fh != "":
-				print >> fh, line
-			else:
-				out += "\n" + line
-		if fh !="":fh.flush()
+			out += "\n" + line
 		return out
 
-	def countLabels(self):
-		counts = {}
-		for (_, _, label) in self.scores:
-			if label not in counts: counts[label] = 0
-			counts[label] += 1
-		return counts
-
-	def readTable(self, scoreF, filter = True):
+	def readTable(self, scoreF, gs):
+		self.scoreF = scoreF
 		scoreFH = open(scoreF)
 		self.header = scoreFH.readline().rstrip().split("\t")
-		gs = self.positive | self.negative
-		colnum = len(self.positive)+len(self.negative)
-		if filter == False: colnum = lineCount(scoreF)
-		self.scores = np.zeros((colnum, len(self.header)-2))
+		tokeep = gs.positive | gs.negative
+		self.scores = np.zeros((len(tokeep), len(self.header)-2))
 		i = 0
 		self.ppiToIndex = {}
 		for line in scoreFH:
+			self.to_predict += 1
 			line = line.rstrip()
 			if line == "": continue
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
-			if edge not in gs and filter == True: continue
+			if edge not in tokeep: continue
 			edge_scores = np.nan_to_num(np.array(map(float, linesplit[2:])))
 			self.scores[i,:] = edge_scores
 			self.IndexToPpi[i] = edge
@@ -1059,25 +950,20 @@ class CalculateCoElutionScores():
 
 	# @author: Florian Goebels
 	# return stored co elution scores for a given data set in form that is required for sklearn to learn and predict interaction
-	def toSklearnData(self, get_preds = True):
+	def toSklearnData(self, gs):
 		ids = []
 		targets = []
 		used_indeces = []
 		for i in range(self.scores.shape[0]):
-			#print ("index is here.")
-			#print (self.IndexToPpi[i])
 			ppi = self.IndexToPpi[i]
 			label = "?"
-			if ppi in self.positive: label = 1
-			if ppi in self.negative: label = 0
-			if label != "?" or get_preds:
+			if ppi in gs.positive: label = 1
+			if ppi in gs.negative: label = 0
+			if label != "?":
 				targets.append(label)
 				ids.append(ppi)
 				used_indeces.append(i)
-		if get_preds == True:
-			return ids, self.scores, np.array(targets)
-		else:
-			return ids, self.scores[used_indeces, :], np.array(targets)
+		return ids, self.scores[used_indeces, :], np.array(targets)
 
 # @ author Florian Goebels
 # wrapper for machine learning
@@ -1088,14 +974,8 @@ class CLF_Wrapper:
 	#		data matrix with features where each row is a data point
 	#		targets list with class lables
 	# 		forest if true ml is random forst, if false ml is svm
-	def __init__(self, data, targets, num_cores, forest=False, folds =10, useFeatureSelection= False):
-		self.data = data
-		self.folds = folds
-		self.targets = targets #label_binarize(targets, classes=[0, 1])
-		self.eval_preds = ""
-		self.eval_targets = ""
+	def __init__(self, num_cores, forest=False, useFeatureSelection= False):
 		self.num_cores = num_cores
-		thisCLF = ""
 		if forest:
 			print("using Random forest")
 			thisCLF = RandomForestClassifier(n_estimators=1000, n_jobs=self.num_cores)
@@ -1108,52 +988,21 @@ class CLF_Wrapper:
 					('classification', thisCLF)
 				])
 		self.clf = thisCLF
-		print ("this is CLF")
-		print thisCLF
-		self.clf.fit(self.data, self.targets)
 
-	# @author Florian Goebels
-	def geteval(self):
-		all_probas = []
-		all_targets = []
-		skf = StratifiedKFold(self.folds)
-		for train, test in skf.split(self.data, self.targets): #Depricated code StratifiedKFold(self.targets, self.folds):
-			probas = self.clf.fit(self.data[train], self.targets[train]).predict_proba(self.data[test])
-			all_probas.extend(probas[:,1]) # make sure that 1 is positive class in binarizied class vector
-			all_targets.extend(self.targets[test])
-		self.eval_preds  = all_probas
-		self.eval_targets = all_targets
+	def fit(self, data, targets):
+		self.clf.fit(data, targets)
 
-	# @author: Florian Goebels
-	# calculates precision, recall, fmeasure, auc_pr, auc_roc for n fold cross validation
-	# @Param:
-	#		folds number of folds default 10
-	def getValScores(self):
-		skf = StratifiedKFold(self.folds)
-		folds = skf.split(self.data, self.targets) # Depricated code StratifiedKFold(self.targets, self.folds)
-		preds = cross_val_predict(self.clf, self.data, self.targets, cv=folds, n_jobs=self.num_cores)
-		precision = metrics.precision_score(self.targets, preds, average=None)[1]
-		recall = metrics.recall_score(self.targets, preds, average=None)[1]
-		fmeasure = metrics.f1_score(self.targets, preds, average=None)[1]
-		auc_pr = average_precision_score(self.targets, preds)
-		auc_roc = roc_auc_score(self.targets, preds) 
-		return [precision, recall, fmeasure, auc_pr, auc_roc]
-
-
-	# @author: Florian Goebels
-	# calculated PR curve using 10 fold cross validation
-	# returns three arrays: precision, recall, thresholds
-	# @Param:
-	#		folds number of folds default 10
-	def getPRcurve(self, folds=10):
-		if self.eval_preds == "":
-			self.geteval()
-		return precision_recall_curve(self.eval_targets, self.eval_preds)
-
-	def getROCcurve(self, folds=10):
-		if self.eval_preds == "":
-			self.geteval()
-		return roc_curve(self.eval_targets, self.eval_preds)
+	def eval(self, data, targets):
+		probs = self.predict_proba(data)
+		preds = self.predict(data)
+		precision = metrics.precision_score(targets, preds, average=None)[1]
+		recall = metrics.recall_score(targets, preds, average=None)[1]
+		fmeasure = metrics.f1_score(targets, preds, average=None)[1]
+		auc_pr = average_precision_score(targets, preds)
+		auc_roc = roc_auc_score(targets, preds)
+		curve_pr = precision_recall_curve(targets, probs)
+		curve_roc = roc_curve(targets, probs)
+		return [precision, recall, fmeasure, auc_pr, auc_roc, curve_pr, curve_roc]
 
 	# @author: Florian Goebels
 	# @Param:
@@ -1167,523 +1016,3 @@ class CLF_Wrapper:
 		preds = self.clf.predict(toPred)
 		return preds
 
-# @author: Florian Goebels
-# makes precision recall plot for mutliple rp ccurves
-# @Param:
-#	prcurves list of tuples with (name, precision, recall) which should be plotted
-#	outF Pdf file location for the created plot
-def plotCurves(curves, outF, xlab, ylab):
-	plt.clf()
-	plt.xlabel(xlab)
-	plt.ylabel(ylab)
-	plt.ylim([0.0, 1.05])
-	plt.xlim([0.0, 1.0])
-	cols = ['b', 'r', 'c', 'm', 'y', 'k', '#0000ff', '#005D00', '#00FF00', '#8B5D00', '#FF6600', '#FF0066', '#5c5c8a']
-	for (name, curve) in curves:
-		x, y = curve[0:2]
-		if name != "":
-			plt.plot(x, y, label=name, color = cols.pop())
-		else:
-			plt.plot(x, y, color=cols.pop())
-	art = []
-	lgd = plt.legend(loc=9, bbox_to_anchor=(0.5, -0.1),  ncol = 5, fontsize=8)
-	art.append(lgd)
-	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
-
-#Class data wrapper
-# file
-# memory
-# combined
-
-# functions
-#  close
-#  give me next chunk
-# has next chunk
-
-#classifier
-
-
-# @author Florian Goebels
-def predictInteractions(scoreCalc, outDir, useForest, num_cores, scoreF= "", verbose= False, fs = "", fun_anno_toadd = "", score_cutoff=0.5, mode = "exp"):
-	if scoreF =="": scoreF = outDir + ".scores.txt"
-	All_score_FH = open(scoreF)
-
-	ids_train, data_train, targets_train = scoreCalc.toSklearnData(get_preds=False)
-
-	#print ("hello, I am debugging")
-	#print (len(ids_train))
-	#print (data_train[1])
-	#print (len(targets_train))
-
-
-
-
-	clf = CLF_Wrapper(data_train, targets_train, num_cores=num_cores, forest=useForest, useFeatureSelection=False)
-	print data_train.shape
-	def getPredictions(scores, edges, clf):
-		out = []
-		pred_prob = clf.predict_proba(scores)
-		pred_class = clf.predict(scores)
-		for i, prediction in enumerate(pred_class):
-			if prediction == 1:
-				out.append("%s\t%f" % (edges[i], pred_prob[i]))
-	#		out.append("%s\t%f\t%i" % (edges[i], pred_prob[i], prediction))
-		return out
-	out = []
-	tmpscores = []
-	if mode == "fa":
-		print "mode is fa"
-		tmpscores = np.zeros((100000, len(fun_anno_toadd.header)-2))  # add FA scores to column number
-	if mode == "exp":
-		tmpscores = np.zeros((100000, data_train.shape[1]))  # add FA scores to column number
-	if mode == "merge":
-		tmpscores = np.zeros((100000, data_train.shape[1]) )  # add FA scores to column number
-		print ("I am debugging here")
-		print (tmpscores.shape)
-#	tmpscores = np.zeros((100000, data_train.shape[1])) # add FA scores to column number
-	edges = [""]*100000
-	header = All_score_FH.readline().rstrip().split("\t")
-	if fs != "": print np.array(header[2:])[fs]
-	k = 0
-	chunk_num=1
-	i = 0
-	j = 0
-	for line in All_score_FH:
-		i += 1
-		if k % 100000==0 and k != 0:
-			out.extend(getPredictions(tmpscores, edges, clf))
-			if mode == "fa":
-				tmpscores = np.zeros((100000, len(fun_anno_toadd.header) - 2))  # add FA scores to column number
-			if mode == "exp":
-				tmpscores = np.zeros((100000, data_train.shape[1]))  # add FA scores to column number
-			if mode == "merge":
-				tmpscores = np.zeros(
-					(100000, data_train.shape[1]))  # add FA scores to column number
-				#print ("I am debugging here")
-				#print (tmpscores.shape)
-			if verbose:
-				print "Completed chunk %i" % chunk_num
-				chunk_num += 1
-			k = 0
-		line = line.rstrip()
-		if line =="":continue
-		linesplit = line.split("\t")
-		edge = "\t".join(sorted(linesplit[0:2]))
-		if fs =="":
-			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:]), )))
-		else:
-			edge_scores = np.nan_to_num(np.array(map(float, np.array(linesplit[2:])[fs], )))
-
-		if mode == "merge":
-			scores = [0]*(len(fun_anno_toadd.header)-2)
-			if edge in fun_anno_toadd.ppiToIndex:
-				scores = fun_anno_toadd.scores[fun_anno_toadd.ppiToIndex[edge],:]
-			edge_scores = np.array(np.append(edge_scores, scores))
-			#print ("edge_scores shape")
-			#print (edge_scores.shape)
-
-		if mode == "fa":
-			edge_scores = np.array([0]*(len(fun_anno_toadd.header)-2))
-			if edge in fun_anno_toadd.ppiToIndex:
-				edge_scores = np.array(fun_anno_toadd.scores[fun_anno_toadd.ppiToIndex[edge],:])
-
-		if mode == "fa":
-			score_cutoff = 0 # if we use functional evidence to predict PPIs, we only
-
-		# edge_scores = edge_scores + fa_scores
-		if len(list(set(np.where(edge_scores > score_cutoff)[0]))) > 0: ##only check the first 64 columns of the array
-			edge_scores = edge_scores.reshape(1, -1)
-			j += 1
-			edges[k] = edge
-			#print ("I am debugging here~")
-			#if 	(edge_scores.shape)[1] > 64:
-			#print (edge_scores.shape)
-			#print (tmpscores.shape)
-
-			tmpscores[k,0:(edge_scores.shape)[1]] = edge_scores
-			k += 1
-	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
-	All_score_FH.close()
-
-	print "lines in all scores %i" % i
-	print "lines > 0.5 in all scores %i" % j
- 	outFH = open(outDir + ".pred.txt", "w")
-	outFH.write("\n".join(out))
-	outFH.close()
-	return outDir + ".pred.txt", len(out) # cahnge output so it also returns the network
-
-
-def load_data(data_dir, scores, orthmap=""):
-	paths = [os.path.join(data_dir,fn) for fn in next(os.walk(data_dir))[2]]
-	elutionDatas = []
-	elutionProts = set([])
-	for elutionFile in paths:
-		if elutionFile.rsplit(os.sep, 1)[-1].startswith("."): continue
-		elutionFile = elutionFile.rstrip()
-		elutionData = ElutionData(elutionFile)
-		if orthmap !="":
-			if orthmap != False:
-				mapper = GS.Inparanoid("", inparanoid_cutoff=1)
-				mapper.readTable(orthmap, direction=0)
-				elutionData.orthmap(mapper)
-		elutionDatas.append(elutionData)
-		elutionProts = elutionProts | set(elutionData.prot2Index.keys())
-		for score in scores:
-			score.init(elutionData)
-	return elutionProts, elutionDatas
-
-def create_goldstandard(target_taxid, valprots):
-	def create_gs_set(cluster_obj, orthmap, name, valprots):
-		gs =  GS.Goldstandard_from_Complexes(name)
-		gs.make_reference_data(cluster_obj, orthmap, found_prots=valprots)
-		return gs
-
-	orthmap = ""
-	if target_taxid !="9606": orthmap = GS.Inparanoid(taxid=target_taxid)
-
-#	create_gs_set([GS.CORUM()], orthmap, "CORUM", valprots)
-#	create_gs_set([GS.Intact_clusters()], orthmap, "Intact", valprots)
-
-	# Create gold standard from CORUM 9606 stands for Human
-	training_gs = create_gs_set([GS.CORUM(), GS.Intact_clusters(), GS.QuickGO("9606")], orthmap, "Training", valprots)
-
-	# Create gold standard from GO
-	holdout_gs = create_gs_set([GS.QuickGO(target_taxid)], "", "Holdout", valprots)
-
-	#Create gold stnadard from Intact
-	all_gs = create_gs_set([GS.Intact_clusters(), GS.CORUM(), GS.QuickGO(target_taxid), GS.QuickGO("9606")], orthmap, "All", valprots)
-
-	training_p, training_n = training_gs.get_goldstandard()
-	all_p, all_n = all_gs.get_goldstandard()
-	holdout_p, holdout_n = holdout_gs.get_goldstandard()
-
-	training_p =  training_p - (holdout_p | holdout_n)
-	training_n =  training_n - (holdout_p | holdout_n)
-
-	training_complexes = training_gs.complexes
-	holdout_complexes = holdout_gs.complexes
-	all_complexes = all_gs.complexes
-
-	return training_p, training_n, all_p, all_n, holdout_complexes, training_complexes, all_complexes
-
-
-def huri_predict():
-	clsuterF, scoreF, outDir = sys.argv[1:]
-
-	num_cores = 4
-	use_rf = False
-
-	all_comp = GS.Clusters(False)
-	all_comp.read_file(clsuterF)
-	all_p, all_n = all_comp.getPositiveAndNegativeInteractions()
-
-#	ppi_gs = GS.Goldstandard_from_PPIs(ppiF, 100)
-#	all_p = ppi_gs.goldstandard_positive
-#	all_n = ppi_gs.goldstandard_negative
-
-
-	scoreCalc = CalculateCoElutionScores()
-	scoreCalc.positive = all_p
-	scoreCalc.negative = all_n
-
-	scoreCalc.readTable(scoreF)
-
-	scoreCalc.addLabels(all_p, all_n, True)
-	scoreCalc.rebalance()
-
-	print len(scoreCalc.positive)
-	print len(scoreCalc.negative)
-
-	bench_scores(scoreCalc, outDir, 4, True)
-
-	predictInteractions(scoreCalc, outDir, use_rf, num_cores, scoreF=scoreF)
-
-	predF = "%s.pred.txt" % (outDir)
-	clustering_CMD = "java -jar src/cluster_one-1.0.jar %s > %s.clust.txt" % (predF, outDir)
-	os.system(clustering_CMD)
-
-	line = ""
-	header = ""
-
-	tmp_line, tmp_head = clustering_evaluation(all_comp, "All", outDir )
-	all_num_ppis = lineCount(outDir + ".pred.txt")
-	all_num_comp = lineCount(outDir + ".clust.txt")
-	line += "\t%i\t%i" % (all_num_ppis, all_num_comp)
-	header += "\tAll num pred PPIs\tAll num pred clust"
-	line += "\t" + tmp_line
-	header += "\t" + tmp_head
-
-
-
-	outFH = open(outDir + ".eval.txt", "w")
-	print >> outFH, line
-	outFH.close()
-	line = line.split("\t")
-	header = header.split("\t")
-	for i in range(len(line)):
-		print "%s\t%s" % (header[i], line[i])
-
-
-
-def Huri_main():
-	#Huri_pred_non_human_data()
-	#Huri_merge()
-	#id_map_complexes()
-	#id_map_edges()
-	huri_predict()
-	#HuRi_clustEval()
-
-
-
-def getValIds(f, all=False):
-	ids = set([])
-	id_fh = open(f)
-	for line in id_fh:
-		line = line.rstrip()
-		line = line.split("\t")
-		if all:
-			to_add = line
-		else:
-			to_add = line[:2]
-		for id in to_add:
-			ids.add(id)
-	id_fh.close()
-	return ids
-
-def read_map(f, ids, direction=0):
-	mapping = {}
-	map_fh = open(f)
-	for line in map_fh:
-		line = line.rstrip()
-		if direction == 0:
-			target, source_id = line.split("\t")
-		else:
-			source_id, target = line.split("\t")
-
-		if source_id not in ids:continue
-		if source_id not in mapping: mapping[source_id] = set([])
-		mapping[source_id].add(target)
-	map_fh.close()
-
-	todel = set([])
-	for p, m_ps in mapping.items():
-		if len(m_ps) > 1: todel.add(p)
-	for p in todel:
-		del mapping[p]
-	return mapping
-
-def id_map_complexes():
-	file_to_map, mapping_file, outF = sys.argv[1:]
-
-	ids = getValIds(file_to_map)
-	mapping = read_map(mapping_file, ids, 1)
-
-	outFH = open(outF, "w")
-	to_map_fh = open(file_to_map)
-	for line in to_map_fh:
-		line = line.rstrip()
-		line = line.split("\t")
-		new_ids = set([])
-		for id in line:
-			if id not in mapping: continue
-			new_ids.add(list(mapping[id])[0])
-		if len(new_ids)>2:
-			print >> outFH, "\t".join(new_ids)
-	to_map_fh.close()
-	outFH.close()
-
-def id_map_edges():
-	file_to_map, mapping_file, outF = sys.argv[1:]
-
-	ids = getValIds(file_to_map)
-	mapping = read_map(mapping_file, ids, 1)
-
-	outFH = open(outF, "w")
-	to_map_fh = open(file_to_map)
-	for line in to_map_fh:
-		line = line.rstrip()
-		line = line.split("\t")
-		id1, id2 = line[0:2]
-		if id1 not in mapping or id2 not in mapping:continue
-		m_id1 = list(mapping[id1])[0]
-		m_id2 = list(mapping[id2])[0]
-		if len(line)> 2:
-			print >> outFH, "%s\t%s" % ("\t".join(sorted([m_id1, m_id2])), "\t".join(line[2:]))
-		else:
-			print >> outFH, "%s" % ("\t".join(sorted([m_id1, m_id2])))
-
-	to_map_fh.close()
-	outFH.close()
-
-
-def Huri_pred_non_human_data():
-
-	input_dir, num_cores, orthmap, topredF, output_dir = sys.argv[1:]
-
-	toPred  = []
-	topredFH = open(topredF)
-	for line in topredFH:
-			line = line.rstrip()
-			toPred.append(line)
-	topredFH.close()
-	toPred = set(toPred)
-
-#	this_scores = [Wcc(), Poisson(5)]
-	this_scores = [Euclidiean()]
-	num_cores = int(num_cores)
-
-	foundprots, elution_datas = load_data(input_dir, this_scores, orthmap)
-	scoreCalc = CalculateCoElutionScores(cutoff=0)
-	can_pred = set(scoreCalc.getAllPairs_coelutionDatas(elution_datas))
-	print len(toPred)
-	toPred = can_pred & toPred
-	print len(toPred)
-	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, output_dir, num_cores, toPred=toPred)
-
-
-def Huri_merge():
-	scoreF, out_file= sys.argv[1:3]
-	toadd = sys.argv[3:]
-
-	hs_scores = CalculateCoElutionScores()
-	hs_scores.readTable(scoreF, False)
-
-	scoreCalc = CalculateCoElutionScores()
-	for file in toadd:
-		print file
-		to_add_sc = CalculateCoElutionScores()
-		to_add_sc.readTable(file, False)
-		scoreCalc.merge_singe_ScoreCalc(to_add_sc, "u")
-	hs_scores.merge_singe_ScoreCalc(scoreCalc, "l")
-	outFH = open(out_file, "w")
-	hs_scores.toTable(outFH, labels= False)
-
-def HuRi_clustEval():
-	reference_clusters, outDir = sys.argv[1:]
-
-	ref_c = GS.Clusters(False)
-	ref_c.read_file(reference_clusters)
-
-#	pred_c = GS.Clusters(False)
-#	pred_c.read_file(predicted_clusters)
-
-
-	line, head = clustering_evaluation(ref_c, "Fu", outDir )
-
-#	outFH = open(outDir + ".eval.txt", "w")
-#	print >> outFH, line
-#	outFH.close()
-	line = line.split("\t")
-	header = head.split("\t")
-	for i in range(len(line)):
-		print "%s\t%s" % (header[i], line[i])
-
-def main():
-
-	allF, feature_combination, input_dir, use_rf, num_cores, target_taxid, output_dir = sys.argv[																																				1:]
-	if feature_combination == "00000000": sys.exit()
-	all_scores = [Pearson(), Jaccard(), Apex(), MutualInformation(2), Euclidiean(), Wcc(), Bayes(3), Poisson(5)]
-	scores = [MutualInformation(2), Bayes(3), Euclidiean(), Wcc(), Jaccard(), Poisson(5),
-			  Pearson(), Apex()]
-	this_scores = []
-	use_rf = use_rf == "True"
-	num_cores = int(num_cores)
-	for i, feature_selection in enumerate(feature_combination):
-		if feature_selection == "1": this_scores.append(scores[i])
-	this_scores = []#[Bayes(1), Bayes(2), Bayes(3)]
-
-	print this_scores
-
-	all_complexes = GS.Clusters(False)
-	all_complexes.read_file(allF)
-	all_p, all_n = all_complexes.getPositiveAndNegativeInteractions()
-
-	foundprots, elution_datas = load_data(input_dir, this_scores)
-
-	_, _, all_p, all_n, _, _, all_complexes = create_goldstandard(target_taxid, foundprots)
-
-	sys.exit()
-	scoreCalc = CalculateCoElutionScores()
-	scoreCalc.positive = all_p
-	scoreCalc.negative = all_n
-
-#	scoreCalc.rebalance()
-#	gs = scoreCalc.positive | scoreCalc.negative
-
-#	scoreCalc.calculate_coelutionDatas(elution_datas, this_scores, output_dir, num_cores)#, toPred=gs)
-
-#	scoreCalc.rebalance()
-
-#	bench_scores(scoreCalc, output_dir, num_cores, useForest=use_rf)
-	predF = "%s.pred.txt" % (output_dir)
-#	clustering_CMD = "java -jar cluster_one-1.0.jar %s > %s.clust.txt" % (predF, output_dir)
-#	print(clustering_CMD)
-#	os.system(clustering_CMD)
-
-	tmp_line, tmp_head = clustering_evaluation(all_complexes, "All", output_dir )
-	all_num_ppis = lineCount(output_dir + ".pred.txt")
-	all_num_comp = lineCount(output_dir + ".clust.txt")
-	line = "%i\t%i" % (all_num_ppis, all_num_comp)
-	header = "All num pred PPIs\tAll num pred clust"
-	line += "\t" + tmp_line
-	header += "\t" + tmp_head
-
-
-
-def clustering_evaluation(eval_comp, prefix, outDir):
-
-	head = "\t".join(["%s %s" % (prefix, h) for h in ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy", "sep"]])
-
-	pred_clusters = GS.Clusters(need_to_be_mapped=False)
-	#pred_clusters.read_file("%s.clust.txt" % (outDir))
-	print ("debugging here")
-	print (outDir)
-	pred_clusters.read_file((outDir))
-
-	# remove complexes that can not match reference
-#	ref_prots = set(eval_comp.getProtToComplexMap().keys())
-#	pred_clusters.remove_proteins(ref_prots)
-
-	pred_clusters.filter_complexes()
-	pred_clusters.merge_complexes()
-	pred_clusters.filter_complexes()
-
-
-	cluster_scores = "\t".join(map(str, pred_clusters.clus_eval(eval_comp)))
-	return cluster_scores, head
-
-
-def get_eval(scoreCalc, num_cores, useForest=False, folds=3):
-	_, data, targets = scoreCalc.toSklearnData(get_preds=False)
-	print data.shape
-	data = np.array(data)
-	clf = CLF_Wrapper(data, targets, num_cores=num_cores, forest=useForest, folds=folds,
-					  useFeatureSelection=False)
-	print clf.getValScores()
-	p, r, tr = clf.getPRcurve()
-	pr_curve = tuple([r,p, tr])
-	fpr, tpr, tr = clf.getROCcurve()
-	roc_curve = tuple([fpr, tpr, tr])
-	return tuple([pr_curve, roc_curve])
-
-def bench_scores(scoreCalc, outDir, num_cores, useForest=False, folds=3):
-	pr_curves = []
-	roc_curves = []
-	cutoff_curves = []
-	pr, roc = get_eval(scoreCalc, num_cores, useForest, folds)
-	pr_curves.append(("Combined", pr))
-	roc_curves.append(("Coxmbined", roc))
-	plotCurves(pr_curves, outDir + ".pr.pdf", "Recall", "Precision")
-	plotCurves(roc_curves, outDir + ".roc.pdf", "False Positive rate", "True Positive Rate")
-	recall, precision, threshold = pr
-	threshold = np.append(threshold, 1)
-	cutoff_curves.append(("Precision", (precision, threshold)))
-	cutoff_curves.append(("Recall", (recall, threshold)))
-	plotCurves(cutoff_curves, outDir + ".cutoff.pdf", "Cutoff", "Evaluation metric score")
-
-
-if __name__ == "__main__":
-		try:
-				Huri_main()
-		except KeyboardInterrupt:
-				pass

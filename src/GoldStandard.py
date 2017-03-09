@@ -10,87 +10,15 @@ import math
 import sys
 import random as rnd
 
-
-class Goldstandard_from_PPIs():
-	def __init__(self, refF, ratio= -1):
-		self.goldstandard_positive = set([])
-		self.goldstandard_negative = set([])
-		allprots = set([])
-		refFH = open(refF)
-		for line in refFH:
-			line = line.rstrip()
-			(idA, idB) = line.split("\t")
-			allprots.add(idA)
-			allprots.add(idB)
-			pos_edge = "\t".join(sorted([idA, idB]))
-			self.goldstandard_positive.add(pos_edge)
-		refFH.close()
-		allprots = list(allprots)
-		if ratio == -1:
-			for i in range(len(allprots)):
-				prot_i = allprots[i]
-				for j in range(i+1, len(allprots)):
-					prot_j = allprots[j]
-					edge = "\t".join(sorted([prot_i, prot_j]))
-					if edge in self.goldstandard_positive: continue
-					self.goldstandard_negative.add(edge)
-		else:
-			while(len(self.goldstandard_negative)< len(self.goldstandard_positive)*ratio):
-				prot_i, prot_j = rnd.sample(allprots,2)
-				edge = "\t".join(sorted([prot_i, prot_j]))
-				if edge in self.goldstandard_positive: continue
-				self.goldstandard_negative.add(edge)
-
-
-class Goldstandard_from_reference_File():
-	def __init__(self, refF, found_prots=""):
-		self.goldstandard_positive, self.goldstandard_negative = self.read_reference_file(refF, found_prots)
-
-	def read_reference_file(self, refF, found_prots=""):
-			pos = set([])
-			neg = set([])
-			refFH = open(refF)
-			for line in refFH:
-					line = line.rstrip()
-					(idA, idB, label) = line.split("\t")
-					if found_prots != "":
-							if idA not in found_prots: continue
-							if idB not in found_prots: continue
-					edge = "\t".join(sorted([idA, idB]))
-					if label == "negative": neg.add(edge)
-					if label == "positive": pos.add(edge)
-			return pos, neg
-
-class Goldstandard_from_cluster_File():
-	def __init__(self, gsF, found_prots=""):
-		self.clusters = ""
-		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF, found_prots)
-
-	def readGS(self, gsF, found_prots):
-		clusters = Clusters(need_to_be_mapped=False)
-		clusters.read_file(gsF)
-		clusters.filter_complexes()
-		clusters.merge_complexes()
-		clusters.filter_complexes()
-		if found_prots !="": clusters.remove_proteins(found_prots)
-		self.clusters = clusters
-		clusters.filter_complexes()
-		self.clusters = clusters
-		return clusters.getPositiveAndNegativeInteractions()
-
-
 class Goldstandard_from_Complexes():
 
 	def __init__(self, name="unnamed"):
-		self.complexes = ""
+		self.complexes = Clusters(False)
 		self.name = name
 		self.goldstandard_positive, self.goldstandard_negative = set([]), set([])
 
 	def make_reference_data(self, db_clusters, orthmap="", found_prots=""):
-
-		self.complexes = Clusters(False)
 		total_complexes = 0
-
 		for db_clust in db_clusters:
 			tmp_clust = copy.deepcopy(db_clust.get_complexes())
 			total_complexes += len(tmp_clust.complexes.keys())
@@ -116,18 +44,71 @@ class Goldstandard_from_Complexes():
 			self.complexes.filter_complexes()
 			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
-		self.goldstandard_positive, self.goldstandard_negative = self.complexes.getPositiveAndNegativeInteractions()
+		self.make_post_neg_ppis()
+
+	def make_post_neg_ppis(self, val_ppis=""):
+		self.positive, self.negative = self.complexes.getPositiveAndNegativeInteractions()
+		if val_ppis!="":
+			self.positive &= val_ppis
+			self.negative &= val_ppis
 
 	def get_complexes(self):
 		return self.complexes
 
 	def get_goldstandard(self):
-		return self.goldstandard_positive, self.goldstandard_negative
+		return self.positive, self.negative
+
+	def get_edges(self):
+		return self.positive | self.negative
+
+	def split_into_holdout_training(self, val_ppis):
+		holdout = Goldstandard_from_Complexes("Holdout")
+		training = Goldstandard_from_Complexes("Training")
+
+		tmp_clusters = self.complexes.complexes.keys()
+		rnd.shuffle(tmp_clusters)
+
+		t_p, h_p = set([]), set([])
+		# Balnace data set on positive, since we have way more negateiv thatn positive
+		for complex in tmp_clusters:
+			tmp_cluster = Clusters(False)
+			tmp_cluster.addComplex(complex, self.complexes.complexes[complex])
+			tmp_p, _ = tmp_cluster.getPositiveAndNegativeInteractions()
+			tmp_p &= val_ppis
+			if len(tmp_p) ==0:continue
+			if len(t_p)<=len(h_p):
+				t_p |= tmp_p
+				training.complexes.addComplex(complex, self.complexes.complexes[complex])
+			else:
+				h_p |= tmp_p
+				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
+
+		training.make_post_neg_ppis(val_ppis)
+		holdout.make_post_neg_ppis(val_ppis)
+
+		training.positive -= holdout.get_edges()
+		training.negative -= holdout.get_edges()
+
+		training.rebalance()
+		holdout.rebalance()
+
+		return training, holdout
+
+	# @author: Florian Goebels
+	# this method combines who CalculateCoElutionScores objects onto one by comping the toMerge object into the self object
+	# @Param:
+	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined with self object
+	#		mode donates how to merge the sets, left (l), right (r), union (u), or  (i)
+	def rebalance(self, ratio = 5):
+		if len(self.positive) * ratio > len(self.negative):
+			print("Warning: not enough negative data points in reference to create desired ratio")
+		else:
+			self.negative = set(rnd.sample(self.negative, len(self.positive)*ratio))
 
 class Intact_clusters():
 
-	def __init__(self, species = "homo_sapiens"):
-		self.complexes = Clusters(need_to_be_mapped=True)
+	def __init__(self, need_to_be_mapped, species = "homo_sapiens"):
+		self.complexes = Clusters(need_to_be_mapped=need_to_be_mapped)
 		self.need_to_be_mapped = True
 		self.load_data(species)
 
@@ -163,7 +144,8 @@ class CORUM():
 	#		ub upper bound complex should have at most  ub members
 	#		overlap_cutoff merge complexes that have an overlap_score > overlap_cutoff
 	#		source_species select for which species the complexes should be maintained
-	def __init__(self, source_species_regex = "(Human|Mammalia)"):
+	def __init__(self, need_to_be_mapped, source_species_regex = "(Human|Mammalia)"):
+		self.complexes = Clusters(need_to_be_mapped=need_to_be_mapped)
 		# static regex for identifying valid bochemical evidences codes
 		self.biochemical_evidences_regex ="MI:(2193|2192|2191|2197|2195|2194|2199|2198|0807|0401|0400|0406|0405|0404|0089|0084|0081|0007|0006|0004|0513|1029|0979|0009|0008|0841|1312|2188|2189|0411|0412|0413|0928|0415|0417|0098|0729|0920|0921|0603|0602|0605|0604|0402|0095|0096|0606|0091|0092|1142|1145|1147|0019|1309|0696|0697|0695|0858|0698|0699|0425|0424|0420|0423|0991|0990|0993|0992|0995|0994|0997|0996|0999|0998|1028|1011|1010|1314|0027|1313|0029|0028|0227|0226|0225|0900|0901|0430|0434|0435|1008|1009|0989|1004|1005|0984|1007|1000|0983|1002|1229|1087|1325|0034|0030|0031|0972|0879|0870|1036|0678|1031|1035|1034|0676|0440|1138|1236|0049|0048|1232|0047|1137|0419|0963|1026|1003|1022|0808|0515|0514|1187|0516|0511|1183|0512|0887|0880|0889|0115|1006|1249|0982|0953|1001|0508|0509|0657|0814|1190|1191|0813|0066|0892|0899|1211|0108|1218|1352|1354|0949|0946|0947|0073|0071|1019|2168|0700|2167|1252|1017|0276|1189|1184)"
 		self.source_species_regex = source_species_regex
@@ -189,7 +171,6 @@ class CORUM():
 	# @author Florian Goebels
 	# reads in CORUM from flat file
 	def readCORUM(self):
-		self.complexes = Clusters(need_to_be_mapped=True)
 		for comp in self.corum_raw:
 			(species, prots, evidence) = self.corum_raw[comp]
 			# bool(...) returns true if evidence code is found => not bool(...) is true if not valid evidence is found, and thus skip this complex
@@ -236,7 +217,7 @@ class Clusters():
 	# @author Florian Goebels
 	# creats all possible positive and negative protein interactions based on CORUM complex membership
 	def getPositiveAndNegativeInteractions(self):
-		positive = set ([])
+		positive = set([])
 		negative = set([])
 		prot2cluster = self.getProtToComplexMap()
 		for protA in prot2cluster:
@@ -439,9 +420,9 @@ class QuickGO():
 	# object constructor makes internet connection and downloads go annotations into the wd/go_files folder as taxid.go file
 	# @param
 	#		taxid of species that go annotation should be downloaded
-	def __init__(self, taxid):
+	def __init__(self, taxid, need_to_be_mapped):
 		self.taxid = taxid
-		self.complexes = Clusters(need_to_be_mapped=False)
+		self.complexes = Clusters(need_to_be_mapped=need_to_be_mapped)
 		self.get_GO_complexes()
 
 
