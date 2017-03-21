@@ -9,13 +9,21 @@ import re
 import math
 import sys
 import random as rnd
+rnd.seed(1)
 
 class Goldstandard_from_Complexes():
 
-	def __init__(self, name="unnamed"):
+	def __init__(self, name="unnamed", ratio = 5):
 		self.complexes = Clusters(False)
 		self.name = name
-		self.goldstandard_positive, self.goldstandard_negative = set([]), set([])
+		self.ratio = ratio
+		self.positive, self.negative = set([]), set([])
+
+	def set_lb(self, lb):
+		self.complexes.lb = lb
+
+	def set_ub(self, ub):
+		self.complexes.ub = ub
 
 	def make_reference_data(self, db_clusters, orthmap="", found_prots=""):
 		total_complexes = 0
@@ -44,9 +52,9 @@ class Goldstandard_from_Complexes():
 			self.complexes.filter_complexes()
 			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
-		self.make_post_neg_ppis()
+		self.make_pos_neg_ppis()
 
-	def make_post_neg_ppis(self, val_ppis=""):
+	def make_pos_neg_ppis(self, val_ppis=""):
 		self.positive, self.negative = self.complexes.getPositiveAndNegativeInteractions()
 		if val_ppis!="":
 			self.positive &= val_ppis
@@ -61,15 +69,20 @@ class Goldstandard_from_Complexes():
 	def get_edges(self):
 		return self.positive | self.negative
 
-	def split_into_holdout_training(self, val_ppis):
+	def split_into_holdout_training(self, val_ppis, no_overlapp=False):
 		holdout = Goldstandard_from_Complexes("Holdout")
 		training = Goldstandard_from_Complexes("Training")
 
 		tmp_clusters = self.complexes.complexes.keys()
 		rnd.shuffle(tmp_clusters)
 
+		val_negatives = list(self.negative & val_ppis)
+		rnd.shuffle(val_negatives)
+		t_n = set(val_negatives[:int(len(val_negatives)/2)])
+		h_n = set(val_negatives[int(len(val_negatives)/2):])
+
 		t_p, h_p = set([]), set([])
-		# Balnace data set on positive, since we have way more negateiv thatn positive
+		# Balance data set on positive, since we have way more negateiv than positive
 		for complex in tmp_clusters:
 			tmp_cluster = Clusters(False)
 			tmp_cluster.addComplex(complex, self.complexes.complexes[complex])
@@ -83,15 +96,16 @@ class Goldstandard_from_Complexes():
 				h_p |= tmp_p
 				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
 
-		training.make_post_neg_ppis(val_ppis)
-		holdout.make_post_neg_ppis(val_ppis)
+		training.make_pos_neg_ppis(val_ppis)
+		holdout.make_pos_neg_ppis(val_ppis)
 
-		training.positive -= holdout.get_edges()
-		training.negative -= holdout.get_edges()
+		training.negative = t_n
+		holdout.negative = h_n
+
+		if no_overlapp: training.positive -= holdout.get_edges()
 
 		training.rebalance()
 		holdout.rebalance()
-
 		return training, holdout
 
 	# @author: Florian Goebels
@@ -100,10 +114,10 @@ class Goldstandard_from_Complexes():
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined with self object
 	#		mode donates how to merge the sets, left (l), right (r), union (u), or  (i)
 	def rebalance(self, ratio = 5):
-		if len(self.positive) * ratio > len(self.negative):
-			print("Warning: not enough negative data points in reference to create desired ratio")
+		if len(self.positive) * self.ratio > len(self.negative):
+			print("Warning: not enough negative data points in reference to create desired ratio pos:%s, neg:%s" % (len(self.positive), len(self.negative)))
 		else:
-			self.negative = set(rnd.sample(self.negative, len(self.positive)*ratio))
+			self.negative = set(rnd.sample(self.negative, len(self.positive)*self.ratio))
 
 class Intact_clusters():
 
@@ -188,6 +202,9 @@ class Clusters():
 		self.ub = ub
 		self.lb = lb
 		self.need_to_be_mapped = need_to_be_mapped
+
+	def get_complexes(self):
+		return self
 
 	def addComplex(self, complex, members):
 		if complex not in self.complexes: self.complexes[complex] = set([])

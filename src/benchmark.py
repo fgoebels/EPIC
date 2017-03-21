@@ -1,15 +1,14 @@
 from __future__ import division
-from scipy.spatial import distance
-from scipy.stats import zscore
-
+import numpy as np
+import copy, os, sys
 import CalculateCoElutionScores as CS
 import GoldStandard as GS
-import numpy as np
-import sys
-import os, math
-import glob
-import random as re
-import fs as fs
+import utils as utils
+
+
+"""
+from scipy.spatial import distance
+from scipy.stats import zscore
 import itertools
 
 class Goldstandard_from_PPIs():
@@ -43,42 +42,6 @@ class Goldstandard_from_PPIs():
 				self.goldstandard_negative.add(edge)
 
 
-class Goldstandard_from_reference_File():
-	def __init__(self, refF, found_prots=""):
-		self.goldstandard_positive, self.goldstandard_negative = self.read_reference_file(refF, found_prots)
-
-	def read_reference_file(self, refF, found_prots=""):
-			pos = set([])
-			neg = set([])
-			refFH = open(refF)
-			for line in refFH:
-					line = line.rstrip()
-					(idA, idB, label) = line.split("\t")
-					if found_prots != "":
-							if idA not in found_prots: continue
-							if idB not in found_prots: continue
-					edge = "\t".join(sorted([idA, idB]))
-					if label == "negative": neg.add(edge)
-					if label == "positive": pos.add(edge)
-			return pos, neg
-
-class Goldstandard_from_cluster_File():
-	def __init__(self, gsF, found_prots=""):
-		self.clusters = ""
-		self.goldstandard_positive, self.goldstandard_negative = self.readGS(gsF, found_prots)
-
-	def readGS(self, gsF, found_prots):
-		clusters = Clusters(need_to_be_mapped=False)
-		clusters.read_file(gsF)
-		clusters.filter_complexes()
-		clusters.merge_complexes()
-		clusters.filter_complexes()
-		if found_prots !="": clusters.remove_proteins(found_prots)
-		self.clusters = clusters
-		clusters.filter_complexes()
-		self.clusters = clusters
-		return clusters.getPositiveAndNegativeInteractions()
-
 def epic_read_eval(fs_eval_Fs):
 
 	def norm_score(scores, columns):
@@ -109,6 +72,11 @@ def epic_read_eval(fs_eval_Fs):
 	zvals = zscore(vals)
 
 	return header, fs, vals, zvals
+
+# Class for selecting sub ser of features of a scoreCalc Object
+class feature_selector():
+	def init(self):
+		return None
 
 def EPIC_eval_fs_DIST():
 
@@ -338,3 +306,221 @@ def benchmark():
 			print >> outF, head + out_data
 			outF.close()
 
+"""
+
+
+def Goldstandard_from_cluster_File(gsF):
+		clusters = GS.Clusters(need_to_be_mapped=False)
+		clusters.read_file(gsF)
+		gs = GS.Goldstandard_from_Complexes("All")
+		gs.complexes = clusters
+		gs.make_pos_neg_ppis()
+		return gs
+
+class feature_selector:
+	def __init__(self, feature_names, scoreCalc):
+		self.get_cols(scoreCalc.header, feature_names)
+		self.cutoff = scoreCalc.cutoff
+		self.scoreCalc = self.filter_scoreCalc(scoreCalc)
+		self.to_predict = self.scoreCalc.to_predict
+
+	def set_cutoff(self, cutoff):
+		self.cutoff = cutoff
+
+	def get_cols(self, header, feature_names):
+		self.to_keep_header = [0, 1]
+		self.to_keep_score = []
+		for i in range(2, len(header)):
+			colname = header[i]
+			scorename = colname.split(".")[-1]
+			if scorename in feature_names:
+				self.to_keep_header.append(i)
+				self.to_keep_score.append(i - 2)
+
+	def valid_score(self, scores):
+		return len(list(set(np.where(scores > self.cutoff)[0])))>0
+
+	def filter_score(self, scores):
+		if self.valid_score(scores):
+			return scores[self.to_keep_score]
+		else:
+			return []
+
+	def filter_scoreCalc(self, scoreCalc):
+		filtered_scoreCalc = copy.deepcopy(scoreCalc)
+		filtered_scoreCalc.header = np.array(filtered_scoreCalc.header)[self.to_keep_header]
+		filtered_scoreCalc.scores = filtered_scoreCalc.scores[:, self.to_keep_score]
+		prot_indices = [None]* len(scoreCalc.ppiToIndex.keys())
+		for p, i in scoreCalc.ppiToIndex.items(): prot_indices[i] = p
+		val_rows = np.where(np.apply_along_axis( self.valid_score, 1, filtered_scoreCalc.scores)==True)[0]
+		filtered_scoreCalc.scores = filtered_scoreCalc.scores[val_rows, :]
+		prot_indices = np.array(prot_indices)[val_rows]
+		filtered_scoreCalc.ppiToIndex = {}
+		filtered_scoreCalc.IndexToPpi = {}
+		for i, p in enumerate(prot_indices):
+			filtered_scoreCalc.ppiToIndex[p] = i
+			filtered_scoreCalc.IndexToPpi[i] = p
+ 		return filtered_scoreCalc
+
+	def get_next(self):
+		edge, scores = self.scoreCalc.get_next()
+		return edge, self.filter_score(scores)
+
+	def toSklearnData(self, gs):
+		return self.scoreCalc.toSklearnData(gs)
+
+	def open(self):
+		self.scoreCalc.open()
+
+	def close(self):
+		self.scoreCalc.close()
+
+def write_reference(args):
+	input_dir, taxid, output_dir = args
+	foundprots, elution_datas = utils.load_data(input_dir, [])
+	gs = utils.create_goldstandard(taxid, foundprots)
+	out = gs.complexes.to_string()
+	outFH = open(output_dir, "w")
+	print >> outFH, out
+	outFH.close()
+
+def bench_Bayes(args):
+	input_dir, scoreF, ref_compF, output_dir = args
+	out_head, out_scores = "", []
+	combinations = [ [CS.Bayes(1)]
+					,[CS.Bayes(2)]
+					,[CS.Bayes(3)]]
+#					,[CS.Bayes(1), CS.Bayes(2)]
+#					,[CS.Bayes(1), CS.Bayes(3)]
+#					,[CS.Bayes(2), CS.Bayes(3)]
+#					,[CS.Bayes(1), CS.Bayes(2), CS.Bayes(3)]]
+
+	for bayes_comb in combinations:
+		tmp_head, tmp_scores = run_epic_with_feature_combinations(bayes_comb, input_dir, 4, True, scoreF, output_dir,
+										   no_overlap_in_training=False, ref_complexes=ref_compF)
+		out_head = tmp_head
+		out_scores.append(tmp_scores)
+
+	outFH = open(output_dir + "all.eval.txt", "w")
+	print >> outFH, "%s\n%s" % (out_head, "\n".join(out_scores))
+	outFH.close()
+
+	print "%s\n%s" % (out_head, "\n".join(out_scores))
+
+def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores, use_rf, scoreF,  output_dir, no_overlap_in_training, ref_complexes="", taxid="", fs = ""):
+	if ref_complexes !="" and taxid!="":
+		print "Suplly either taxid or reference complex file"
+		sys.exit()
+	all_gs = ""
+
+	clf = CS.CLF_Wrapper(num_cores, use_rf, useFeatureSelection=fs)
+
+	foundprots, elution_datas = utils.load_data(input_dir, feature_combination)
+	if taxid != "": all_gs = utils.create_goldstandard(taxid, foundprots)
+	if ref_complexes != "":
+		print "Loading reference from file"
+		print ref_complexes
+		all_gs = Goldstandard_from_cluster_File(ref_complexes)
+
+	print len(all_gs.positive)
+	print len(all_gs.negative)
+
+	scoreCalc = CS.CalculateCoElutionScores(feature_combination, elution_datas, output_dir + ".scores.txt",
+											num_cores=num_cores, cutoff=0.5)
+	scoreCalc.readTable(scoreF, all_gs)
+
+	print scoreCalc.scores.shape
+	print "Num valid filterd ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
+	print "Num valid all pos: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(all_gs.positive))
+	print "Num valid all negative: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(all_gs.negative))
+	all_gs.make_pos_neg_ppis(val_ppis=set(scoreCalc.ppiToIndex.keys()))
+	feature_comb = feature_selector([fs.name for fs in feature_combination], scoreCalc)
+	print feature_comb.scoreCalc.scores.shape
+
+	print "Num valid filterd ppis: %i" % len(set(feature_comb.scoreCalc.ppiToIndex.keys()))
+	print "Num valid filtered pos: %i" % len(set(feature_comb.scoreCalc.ppiToIndex.keys()) & set(all_gs.positive))
+	print "Num valid filtered negative: %i" % len(set(feature_comb.scoreCalc.ppiToIndex.keys()) & set(all_gs.negative))
+
+	out_prefix = "_".join([fs.name for fs in feature_combination])
+	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()), no_overlapp=no_overlap_in_training)
+
+ 	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
+
+	print "Num valid ppis in training pos: %i" % len(train.positive)
+	print "Num valid ppis in training neg: %i" % len(train.negative)
+
+	print "Num valid ppis in eval pos: %i" % len(eval.positive)
+	print "Num valid ppis in eval neg: %i" % len(eval.negative)
+
+	network = utils.make_predictions(feature_comb, "exp", clf, train, "", verbose=True)
+
+	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
+	print >> outFH, "\n".join(network)
+	outFH.close()
+
+	num_ppis = len(network)
+	if num_ppis != 0:
+
+		# Predicting clusters
+		utils.predict_clusters("%s.%s.pred.txt" % (output_dir, out_prefix),
+							   "%s.%s.clust.txt" % (output_dir, out_prefix))
+
+		# Evaluating predicted clusters
+		pred_clusters = GS.Clusters(False)
+		pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, out_prefix))
+		num_cluster = CS.lineCount("%s.%s.clust.txt" % (output_dir, out_prefix))
+
+		t_s, t_h = utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
+		e_s, e_h = utils.clustering_evaluation(eval.complexes, pred_clusters, "Eval", True)
+		out_head = "FS\tNum PPIs\tNum Clusters\t%s\t%s" % (t_h, e_h)
+		out_scores = "%s\t%i\t%i\t%s\t%s" % (out_prefix, num_ppis, num_cluster, t_s, e_s)
+		return out_head, out_scores
+	else:
+		head_t = "\t".join(["%s %s" % ("Train", h) for h in
+						  ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy",
+						   "sep"]])
+		head_e = "\t".join(["%s %s" % ("Eval", h) for h in
+						  ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy",
+						   "sep"]])
+
+		return "FS\tNum PPIs\tNum Clusters\t%s\t%s" % (head_t, head_e), "\t".join(map(str, [0]*18))
+
+def calc_feature_combination(args):
+	feature_combination, input_dir, use_rf, fs, num_cores, scoreF, ref_complexes, output_dir = args
+	#Create feature combination
+	if feature_combination == "00000000": sys.exit()
+	scores = [CS.MutualInformation(2), CS.Bayes(2), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
+	this_scores = []
+	for i, feature_selection in enumerate(feature_combination):
+		if feature_selection == "1": this_scores.append(scores[i])
+	num_cores = int(num_cores)
+	use_rf = use_rf == "True"
+	fs = fs =="True"
+
+	no_reference_overlap = False
+	head, scores = run_epic_with_feature_combinations(this_scores, input_dir, num_cores, use_rf, scoreF, output_dir,
+															  no_reference_overlap, ref_complexes=ref_complexes, fs = fs)
+	outFH = open(output_dir + ".eval.wo.txt", "w")
+	print >> outFH, "%s\n%s" % (head, scores)
+	outFH.close()
+
+def main():
+	mode = sys.argv[1]
+
+	if mode == "-fs":
+		calc_feature_combination(sys.argv[2:])
+
+	elif mode == "-make_ref":
+		write_reference(sys.argv[2:])
+
+	elif mode == "-bench_bayes":
+		bench_Bayes(sys.argv[2:])
+
+
+if __name__ == "__main__":
+	try:
+		main()
+	except KeyboardInterrupt:
+		pass
+
+	#11000100 (MI, Bayes, PCC+N)

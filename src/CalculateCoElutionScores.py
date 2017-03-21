@@ -18,7 +18,6 @@ from sklearn.feature_selection import RFECV
 
 from sklearn import svm
 from sklearn import metrics
-import random
 import multiprocessing as mp
 
 # The following imported libraries are for intergrating GeneMANIA data as Functional Evidence
@@ -127,7 +126,7 @@ class ElutionData():
 				i += 1
 			else:
 				removed += 1
-		print "finished processing %s\n removed %i (%.2f)proteins with counts in only one fraction" % (elutionProfileF, removed, removed/(removed + len(prot2Index)))
+		print "finished processing %s\n removed %i (%.2f) proteins with counts in only one fraction" % (elutionProfileF, removed, removed/(removed + len(prot2Index)))
 		elutionProfileFH.close()
 		elutionMat = np.nan_to_num(np.matrix(elutionMat))
 		return elutionMat, prot2Index
@@ -532,9 +531,9 @@ class Genemania:
 		urlbase = 'http://genemania.org/data/current'
 		speciesURL = os.path.join(urlbase, taxoIDspeciesDic[self.taxoID])
 		r = urllib.urlopen(speciesURL).read()
-		soup = BeautifulSoup(r)
+#		soup = BeautifulSoup(r)
 
-#		soup = BeautifulSoup(r, "html.parser")
+		soup = BeautifulSoup(r, "html.parser")
     
 		table = soup.find('table')
     
@@ -978,15 +977,16 @@ class CLF_Wrapper:
 		self.num_cores = num_cores
 		if forest:
 			print("using Random forest")
-			thisCLF = RandomForestClassifier(n_estimators=1000, n_jobs=self.num_cores)
+			thisCLF = RandomForestClassifier(n_estimators=1000, n_jobs=self.num_cores, random_state=0)
 		else:	
 			print("Using SVM")
 			thisCLF =  svm.SVC(kernel="linear", probability=True)
-			if useFeatureSelection:
-				self.clf = Pipeline([
-					('feature_selection', RFECV(estimator=thisCLF, step=1, scoring="accuracy")),
-					('classification', thisCLF)
-				])
+		if useFeatureSelection:
+			print("Using Feature selection RFECV")
+			self.clf = Pipeline([
+				('feature_selection', RFECV(estimator=thisCLF, step=1, scoring="accuracy")),
+				('classification', thisCLF)
+			])
 		self.clf = thisCLF
 
 	def fit(self, data, targets):

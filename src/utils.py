@@ -7,17 +7,20 @@ import matplotlib.pyplot as plt
 import os
 import GoldStandard as GS
 import copy
+import json
 
-def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False):
+
+def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"):
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
 	_, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
 	clf.fit(data_train, targets_train)
 	precision, recall, fmeasure, auc_pr, auc_roc, curve_pr, curve_roc = clf.eval(data_eval, targets_eval)
-	plotCurves([("", curve_pr)], outDir + ".pr.pdf", "Recall", "Precision")
-	plotCurves([("", curve_roc)], outDir + ".roc.pdf", "False Positive rate", "True Positive Rate")
+	plotCurves([("", curve_roc)], outDir + ".roc." + format, "False Positive rate", "True Positive Rate")
 	recall_vals, precision_vals, threshold = curve_pr
+	plotCurves([("", (precision_vals, recall_vals))], outDir + ".pr." + format, "Recall", "Precision")
+
 	threshold = np.append(threshold, 1)
-	plotCurves([("Precision", (precision_vals, threshold)), ("Recall", (recall_vals, threshold))], outDir + ".cutoff.pdf", "Cutoff", "Evaluation metric score")
+	plotCurves([("Precision", (precision_vals, threshold)), ("Recall", (recall_vals, threshold))], outDir + ".cutoff." + format, "Cutoff", "Evaluation metric score")
 	if verbose:
 		rownames = ["Precision", "Recall", "F-Measure", "AUC PR", "AUC ROC"]
 		val_scores = [precision, recall, fmeasure, auc_pr, auc_roc]
@@ -69,16 +72,18 @@ def predictInteractions(scoreCalc, clf, gs, verbose= False):
 	k = 0
 	chunk_num=1
 	scoreCalc.open()
+	print "to predict: %i" % scoreCalc.to_predict
 	for line in range(scoreCalc.to_predict):
 		if k % 100000==0 and k != 0:
+			out.extend(getPredictions(tmpscores[0:k, :], edges[0:k], clf))
 			tmpscores = np.zeros((100000, num_features))
+			edges = [""] * 100000
 			if verbose:
 				print "Completed chunk %i" % chunk_num
 				chunk_num += 1
 			k = 0
 		edge, edge_scores = scoreCalc.get_next()
-		if edge == None: continue
-		print edge
+		if edge == "" or edge_scores == []: continue
 		edge_scores = edge_scores.reshape(1, -1)
 		edges[k] = edge
 		tmpscores[k,0:(edge_scores.shape)[1]] = edge_scores
@@ -88,7 +93,7 @@ def predictInteractions(scoreCalc, clf, gs, verbose= False):
 	return out
 
 
-def make_predictions(score_calc, mode, clf, gs, fun_anno=""):
+def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
 	def get_edges_from_network(network):
 		out = {}
 		for edge in network:
@@ -98,7 +103,7 @@ def make_predictions(score_calc, mode, clf, gs, fun_anno=""):
 
 	networks = []
 	# predicts using experiment only
-	if mode == "exp" or mode == "BR": networks.append(predictInteractions(score_calc, clf, gs))
+	if mode == "exp" or mode == "BR": networks.append(predictInteractions(score_calc, clf, gs, verbose))
 
 	#predicts using fun_anno only
 	if mode == "fa"or mode == "BR":
@@ -106,13 +111,13 @@ def make_predictions(score_calc, mode, clf, gs, fun_anno=""):
 			# TODO make illigal argument error
 			print "if using only functional annotation for prediction functional annotation (fun_anno param != "") must not be empty"
 			sys.exit()
-		networks.append(predictInteractions(fun_anno, clf, gs))
+		networks.append(predictInteractions(fun_anno, clf, gs, verbose))
 
 	#predict using both functional annotation and exp
 	if mode == "comb"or mode == "BR":
 		tmp_score_calc = copy.deepcopy(score_calc)
 		tmp_score_calc.add_fun_anno(fun_anno)
-		networks.append(predictInteractions(tmp_score_calc, clf, gs))
+		networks.append(predictInteractions(tmp_score_calc, clf, gs, verbose))
 
 	# return error when no networks is predicted
 	if len(networks) == 0:
@@ -183,3 +188,124 @@ def clustering_evaluation(eval_comp, pred_comp, prefix, verbose= True):
 		for i in range(len(tmp_head)):
 			print "%s\t%s" % (tmp_head[i], tmp_scores[i])
 	return cluster_scores, head
+
+def clusters_to_json(clusters, network):
+	graph = {}
+	for line in network:
+		edge, score = line.rsplit("\t", 1)
+		graph[edge] = score
+
+	cy_elements = []
+	nodes = []
+	edges = []
+
+	net_nodes = set([])
+	for complex in clusters.complexes:
+		prots = list(clusters.complexes[complex])
+		for i in range(len(prots)):
+			protA = prots[i]
+			for j in range(i+1, len(prots)):
+				protB = prots[j]
+				edge = "\t".join(sorted([protA, protB]))
+				score = 0.5
+				if edge in graph: score = graph[edge]
+				nodeA = "%s_%s" % (protA, str(complex))
+				nodeB = "%s_%s" % (protB, str(complex))
+				net_nodes.add(nodeA)
+				net_nodes.add(nodeB)
+				edge = {
+					'group': 'edges',
+					'data': {
+						'source': nodeA,
+						'target': nodeB,
+						'score': str(score),
+					}
+				}
+				cy_elements.append(edge)
+				edges.append(edge)
+
+	for gene in net_nodes:
+		node = {
+			'group': 'nodes',
+			'data': {
+				'id': str(gene),
+				'name': str(gene),
+			}
+		}
+		cy_elements.append(node)
+		nodes.append(node)
+
+	return json.dumps(cy_elements, default=lambda cy_elements: cy_elements.__dict__)
+
+def network_to_js(network):
+	cy_elements = []
+	nodes = []  # For Cytoscape
+	edges = []  # For Cytoscape
+
+
+	net_nodes = set([])
+	for line in network:
+		ida, idb, score = line.split("\t")
+		net_nodes.add(ida)
+		net_nodes.add(idb)
+		edge = {
+			'group': 'edges',
+			'data': {
+				'source': ida,
+				'target': idb,
+				'score': score,
+			}
+		}
+		cy_elements.append(edge)
+		edges.append(edge)
+
+	for gene in net_nodes:
+		node = {
+			'group': 'nodes',
+			'data': {
+				'id': str(gene),
+				'name': gene,
+			}
+		}
+		cy_elements.append(node)
+		nodes.append(node)
+
+	return json.dumps(cy_elements, default=lambda cy_elements: cy_elements.__dict__)
+
+def json_to_cy_js(div_id, style, json_str):
+
+	return """
+	            <script>
+	                $('#cy').show();
+	                var cy = cytoscape({
+	                    container: document.getElementById('%s'),
+	                    layout: { name: '%s' },
+	                    elements: %s,
+	                    style: [
+	                     {
+	                        selector: 'node',
+	                        style: {
+	                          'width': 'mapData(normScore, 0, 1, 20, 60)',
+	                          'height': 'mapData(normScore, 0, 1, 20, 60)',
+	                          'content': 'data(name)',
+	                          'font-size': 12,
+	                          'text-valign': 'center',
+	                          'text-halign': 'center',
+	                          'background-color': '#555',
+	                          'text-outline-color': '#555',
+	                          'text-outline-width': 1.75,
+	                          'color': '#fff',
+	                          'overlay-padding': 6,
+	                          'z-index': 10
+	                        }
+	                      },
+	                      {
+	                        selector: 'edge',
+	                        style: {
+	                          'line-color': 'black',
+	                          'width': 'mapData( score, 0,1,0,10)',
+	                        }
+	                      },
+	                    ]
+	                });
+	            </script>""" % (div_id, style, json_str)

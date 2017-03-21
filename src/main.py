@@ -10,10 +10,12 @@ def main():
 
 	#Create feature combination
 	if feature_combination == "00000000": sys.exit()
-	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
+	scores = [CS.MutualInformation(2), CS.Bayes(2), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	this_scores = []
 	for i, feature_selection in enumerate(feature_combination):
 		if feature_selection == "1": this_scores.append(scores[i])
+
+	print "\t".join([fs.name for fs in this_scores])
 
 	# Initialize CLF
 	use_rf = use_rf == "True"
@@ -26,18 +28,17 @@ def main():
 	# Generate reference data set
 	all_gs = utils.create_goldstandard(target_taxid, foundprots)
 
-	print len(all_gs.positive)
-	print len(all_gs.negative)
-
+#	print len(all_gs.positive)
+#	print len(all_gs.negative)
 
 	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores)
-#	scoreCalc.calculate_coelutionDatas(gs)
-	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+	scoreCalc.calculate_coelutionDatas(all_gs)
+#	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print len(set(scoreCalc.ppiToIndex.keys()))
 	train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 
 	# Evaluate classifier
-#	utils.bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
+	utils.bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
 
 	genemania = ""
 	if mode != "exp":
