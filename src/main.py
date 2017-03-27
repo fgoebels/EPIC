@@ -42,11 +42,29 @@ def main():
 
 	genemania = ""
 	if mode != "exp":
-		genemania = CS.Genemania("6239")
-		genemania = genemania.getScoreCalc()
+		if anno_source == "GM":
+
+			genemania = CS.Genemania("6239")
+			functionalData = genemania.getScoreCalc()
+
+		elif anno_source == "STRING":
+
+			string = CS.STRING("6239")
+			functionalData = string.getScoreCalc()
+
+		elif anno_source == "FILE":
+
+			#the supplied functional evidence data needs to have the correct header row...
+			externaldata = CS.ExternalEvidence("directory of your functional evidence data, need to have the correct header")
+			functionalData = externaldata.getScoreCalc()
+
+		else:
+			print "EPIC only support GeneMane, STRING, and flat file input please use the followign tags for anno_source GM, STRING, FILE"
+			sys.exit()
+
 
 	# Predict protein interaction
-	network =  utils.make_predictions(scoreCalc, mode, clf, train, genemania)
+	network =  utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
 	outFH = open("%s.%s.pred.txt" % (output_dir, mode), "w")
 	print >> outFH, "\n".join(network)
 	outFH.close()
