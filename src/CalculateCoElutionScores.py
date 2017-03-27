@@ -1015,4 +1015,151 @@ class CLF_Wrapper:
 	def predict(self, toPred):
 		preds = self.clf.predict(toPred)
 		return preds
+	
+# @ author: Lucas Ming Hu
+# This is ahelper function can help users to read their personal evidence file as extra functional evidence and integrate into the pipeline.
+class ExternalEvidence:
+
+	# author: Lucas Ming Hu
+	# This methods initiates the object
+	# FilenameWithDic is the directory with filename for the etxernal functional evidence data
+	def __init__(self, FilenameWithDic):
+		self.FilenameWithDic = FilenameWithDic
+		self.scoreCalc = CalculateCoElutionScores()
+		#self.scoreCalc.readTable(FilenameWithDic)
+		self.scores = {}
+
+	# @ author: Lucas Ming Hu
+	# read external functional evidence, user can supply the external functional evidence as they want to integrate into the experimental data
+	def readFile(self):
+
+		#first, read the external functional evidence data into a dictionary
+		with open(self.FilenameWithDic) as fp:
+			for line in fp:
+				names = line.rstrip().split("\t")
+				if names[0] == "protein1":
+					for evidence in names[2:]:
+						self.scoreCalc.header.append(evidence)
+				else:
+					edge = "\t".join(sorted([names[0], names[1]]))
+					self.scores[edge] = names[2:]
+
+		i = 0
+		self.scoreCalc.scores = np.zeros((len(self.scores.keys()), len(names[2:])))
+
+		#second, from the dictionary, read the file into the
+		for edge in self.scores:
+			self.scoreCalc.ppiToIndex[edge] = i
+			self.scoreCalc.IndexToPpi[i] = edge
+			self.scoreCalc.scores[i, :] = self.scores[edge]
+			i += 1
+
+	def getScoreCalc(self):
+		return self.scoreCalc
+
+# @ author Lucas Ming Hu
+# This is a helper class for getting STRING functional evidence for a given ElutionData object
+# Make sure to leave 300MB in your disk for storing files from STRING, the script needs to download it first, since
+# API in STRING doesn't support bulk data manipualation.
+class STRING:
+	def __init__(self, taxID):
+
+		# the input is the Taxo ID for the given species
+		self.TaxID = taxID
+		# create a protein_pair_mapping dictionary, STRINGID - UniProtName
+		self.nameMappingDict = {}
+		# create a geneName mapping dictionary based on Uniprot website database
+		self.nameMapping()
+		# ScoreCalc object contains edges and it's associated STRING scores
+		self.scoreCalc = CalculateCoElutionScores()
+		# loads all of Worm Gene
+		self.load_string()
+
+	# @auothor Lucas Ming Hu
+	# the nameMapping function can help to download name mapping file from STRING website automatically.
+	def nameMapping(self):
+
+		#this is the url for STRING_id and Uniprot_id mapping file
+		url = "http://string-db.org/download/protein.aliases.v10/" + str(self.TaxID) + ".protein.aliases.v10.txt.gz"
+		filename_protein = url.split("/")[-1]
+
+		with open(filename_protein, "wb") as f:
+			r = requests.get(url)
+			f.write(r.content)
+		f.close()
+
+		self.nameMappingDict = {}
+
+		# read the local .gz file and store STRING_id and its uniprot_id to a dictionary
+		with gzip.open(filename_protein, 'r') as fin:
+			for line in fin:
+				line.rstrip()
+				items = line.split()
+				# only read the uniprot ID into the dictionary...
+				if len(items) >= 3 and "BLAST_UniProt_AC Ensembl_UniProt_AC" in line:
+					self.nameMappingDict[items[0]] = items[1]  # key is STRING protein ID and value is Uniprot ID
+		fin.close()
+
+	# @auothor Lucas Ming Hu
+	# the load_string function can help to download functional evidence data from STRING website automatically.
+	# we exclude evidences from "exp", "database" and "cmobined"
+	# the evidences left are: "neighbour", "fusion", "co-occurence", "co-expression" and "textmining"
+	def load_string(self):
+
+		# download the interaction data file from internet as compressed .gz file...
+		url2 = "http://string-db.org/download/protein.links.detailed.v10/" + str(
+			self.TaxID) + ".protein.links.detailed.v10.txt.gz"
+		filename_interaction = url2.split("/")[-1]
+		with open(filename_interaction, "wb") as f:
+			r = requests.get(url2)
+			f.write(r.content)
+		f.close()
+
+		temp_score_dict = {}  # select the socres from the evidence we want and put them into a dictonary.
+		self.header = [] # self.scoreCalc needs header row
+		print ("finish reading the protein mapping file from STRING")
+
+		# then read the .gz file
+		with gzip.open(filename_interaction, 'r') as fin:
+			for line in fin:
+				line.rstrip()
+				items = line.split()
+				if "protein1 protein2" in line:
+
+					for evidences in items[2:6]:
+						self.scoreCalc.header.append(evidences)
+
+					self.scoreCalc.header.append(items[8])
+
+				else:
+
+					if items[0] in self.nameMappingDict and items[1] in self.nameMappingDict:
+						proteinA = self.nameMappingDict[items[0]]
+						proteinB = self.nameMappingDict[items[1]]
+						edge = "\t".join(sorted([proteinA, proteinB]))
+
+						score = items[2:]
+
+						#select the slected evidence only, we exclude "exp", "database" and "combined_score"
+						usefulScores = [None] * 5
+						usefulScores[0:4] = score[0:4]
+						usefulScores[4] = score[6]
+
+						temp_score_dict[edge] = usefulScores
+		print ("finish reading protein-protein functional evidence data from STRING")
+		fin.close()
+
+		self.scoreCalc.scores = np.zeros((len(temp_score_dict.keys()), 5))
+
+		i = 0
+		for edge in temp_score_dict:
+			self.scoreCalc.ppiToIndex[edge] = i
+			self.scoreCalc.IndexToPpi[i] = edge
+			self.scoreCalc.scores[i,:] = temp_score_dict[edge]
+			i += 1
+
+	# @author: Lucas Ming Hu
+	# the getScoreCalc function will return the self.scoreCalc .
+	def getScoreCalc(self):
+		return self.scoreCalc
 
