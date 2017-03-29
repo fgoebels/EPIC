@@ -805,12 +805,11 @@ class CalculateCoElutionScores():
 	# @Param:	
 	#		scoreTypes	a list of co elutoin score objects
 	#		PPIs		a list of ppis for which all scores in scoreTypes schoukd be calculated
-	def calculateScores(self, toPred, gs=""):
+	def calculateScores(self, toPred, tokeep=set([])):
 		task_queue = mp.JoinableQueue()
 		out_queue = mp.Queue()
 		self.scores = []
 		self.ppiToIndex = {}
-		tokeep = gs.get_edges()
 		num_rows = len(tokeep)
 		num_features = len(self.features)*len(self.elutionData)
 		self.scores = np.zeros((num_rows, num_features))
@@ -906,7 +905,7 @@ class CalculateCoElutionScores():
 
 	def calculate_coelutionDatas(self, gs):
 		toPred = self.getAllPairs()
-		self.calculateScores(toPred, gs)
+		self.calculateScores(toPred, gs.get_edges())
 
 	# @author: Florian Goebels
 	# prints table

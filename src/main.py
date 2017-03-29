@@ -10,7 +10,7 @@ def main():
 
 	#Create feature combination
 	if feature_combination == "00000000": sys.exit()
-	scores = [CS.MutualInformation(2), CS.Bayes(2), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
 	this_scores = []
 	for i, feature_selection in enumerate(feature_combination):
 		if feature_selection == "1": this_scores.append(scores[i])
@@ -24,6 +24,15 @@ def main():
 
 	# Load elution data
 	foundprots, elution_datas = utils.load_data(input_dir, this_scores)
+	all_eData_head, all_eData_scores = utils.elutionDatas_to_treeview(elution_datas, foundprots)
+	print all_eData_head
+	print len(all_eData_scores)
+	for prot in all_eData_scores.keys():
+		prot_scores = all_eData_scores[prot]
+		print prot
+		for i in range(len(all_eData_head)):
+			print "%s\t%f" % (all_eData_head[i], prot_scores[i])
+		sys.exit()
 
 	# Generate reference data set
 	all_gs = utils.create_goldstandard(target_taxid, foundprots)

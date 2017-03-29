@@ -144,8 +144,13 @@ def predict_clusters(predF, outF):
 	clustering_CMD = "java -jar %s/cluster_one-1.0.jar %s > %s" % (dir_path, predF, outF)
 	os.system(clustering_CMD)
 
-def load_data(data_dir, scores, orthmap=""):
-	paths = [os.path.join(data_dir,fn) for fn in next(os.walk(data_dir))[2]]
+def load_data(data, scores, orthmap=""):
+
+	if type(data) is list:
+		paths = data
+	else:
+		paths = [os.path.join(data,fn) for fn in next(os.walk(data))[2]]
+
 	elutionDatas = []
 	elutionProts = set([])
 	for elutionFile in paths:
@@ -218,7 +223,7 @@ def clusters_to_json(clusters, network):
 					'data': {
 						'source': nodeA,
 						'target': nodeB,
-						'score': str(score),
+						'score': float(score),
 					}
 				}
 				cy_elements.append(edge)
@@ -309,3 +314,24 @@ def json_to_cy_js(div_id, style, json_str):
 	                    ]
 	                });
 	            </script>""" % (div_id, style, json_str)
+
+def elutionDatas_to_treeview(eDatas, foundprots):
+	out = {}
+	colnums = {}
+	header = []
+	for eData in eDatas:
+		name = eData.name
+		colnum = eData.elutionMat.shape[1]
+		colnums[name] = colnum
+		prefix = "%s.F" % name
+		header.extend(map(lambda x: "%s%s" % (prefix, x), range(1,colnum+1)))
+
+	for prot in foundprots:
+		out[prot] = []
+		for eData in eDatas:
+			scores = [0]*colnums[eData.name]
+			if eData.hasProt(prot):
+				scores = eData.getElution(prot)
+			out[prot].extend(scores)
+	return header, out
+
