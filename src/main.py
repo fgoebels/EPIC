@@ -6,7 +6,7 @@ import utils as utils
 import sys
 
 def main():
-	feature_combination, input_dir, use_rf, num_cores, mode, target_taxid, output_dir = sys.argv[1:]
+	feature_combination, input_dir, use_rf, num_cores, mode, anno_source, target_taxid, output_dir = sys.argv[1:]
 
 	#Create feature combination
 	if feature_combination == "00000000": sys.exit()
@@ -24,15 +24,6 @@ def main():
 
 	# Load elution data
 	foundprots, elution_datas = utils.load_data(input_dir, this_scores)
-	all_eData_head, all_eData_scores = utils.elutionDatas_to_treeview(elution_datas, foundprots)
-	print all_eData_head
-	print len(all_eData_scores)
-	for prot in all_eData_scores.keys():
-		prot_scores = all_eData_scores[prot]
-		print prot
-		for i in range(len(all_eData_head)):
-			print "%s\t%f" % (all_eData_head[i], prot_scores[i])
-		sys.exit()
 
 	# Generate reference data set
 	all_gs = utils.create_goldstandard(target_taxid, foundprots)
