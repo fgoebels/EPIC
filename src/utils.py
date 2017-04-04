@@ -9,7 +9,6 @@ import GoldStandard as GS
 import copy
 import json
 
-
 def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"):
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
 	_, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
@@ -194,15 +193,15 @@ def clustering_evaluation(eval_comp, pred_comp, prefix, verbose= True):
 			print "%s\t%s" % (tmp_head[i], tmp_scores[i])
 	return cluster_scores, head
 
-def clusters_to_json(clusters, network):
+def clusters_to_json(clusters, network, frac_names, eData):
 	graph = {}
 	for line in network:
 		edge, score = line.rsplit("\t", 1)
 		graph[edge] = score
 
 	cy_elements = []
-	nodes = []
-	edges = []
+	nodes = [] # used to send entwork to cytoscape
+	edges = [] # used to send entwork to cytoscape
 
 	net_nodes = set([])
 	for complex in clusters.complexes:
@@ -230,68 +229,36 @@ def clusters_to_json(clusters, network):
 				edges.append(edge)
 
 	for gene in net_nodes:
+		name, cluster_id = gene.split("_")
 		node = {
 			'group': 'nodes',
 			'data': {
 				'id': str(gene),
-				'name': str(gene),
-			}
-		}
+				'name': name,
+				'cluster_id': cluster_id
+			}}
+		for i in range(len(frac_names)):
+			score = 0
+			if name in eData: score = eData[name][i]
+			node['data'][frac_names[i]] = float(score)
 		cy_elements.append(node)
 		nodes.append(node)
 
-	return json.dumps(cy_elements, default=lambda cy_elements: cy_elements.__dict__)
-
-def network_to_js(network):
-	cy_elements = []
-	nodes = []  # For Cytoscape
-	edges = []  # For Cytoscape
+	return json.dumps(cy_elements, default=lambda cy_elements: cy_elements.__dict__), edges, nodes
 
 
-	net_nodes = set([])
-	for line in network:
-		ida, idb, score = line.split("\t")
-		net_nodes.add(ida)
-		net_nodes.add(idb)
-		edge = {
-			'group': 'edges',
-			'data': {
-				'source': ida,
-				'target': idb,
-				'score': score,
-			}
-		}
-		cy_elements.append(edge)
-		edges.append(edge)
-
-	for gene in net_nodes:
-		node = {
-			'group': 'nodes',
-			'data': {
-				'id': str(gene),
-				'name': gene,
-			}
-		}
-		cy_elements.append(node)
-		nodes.append(node)
-
-	return json.dumps(cy_elements, default=lambda cy_elements: cy_elements.__dict__)
-
-def json_to_cy_js(div_id, style, json_str):
-
+def json_to_cy_js(div_id, json_str):
 	return """
 	            <script>
 	                $('#cy').show();
-	                var cy = cytoscape({
+	                var cy = window.cy = cytoscape({
 	                    container: document.getElementById('%s'),
-	                    layout: { name: '%s' },
+	                    layout: { },
 	                    elements: %s,
 	                    style: [
 	                     {
 	                        selector: 'node',
 	                        style: {
-	                          'width': 'mapData(normScore, 0, 1, 20, 60)',
-	                          'height': 'mapData(normScore, 0, 1, 20, 60)',
 	                          'content': 'data(name)',
 	                          'font-size': 12,
 	                          'text-valign': 'center',
@@ -307,13 +274,30 @@ def json_to_cy_js(div_id, style, json_str):
 	                      {
 	                        selector: 'edge',
 	                        style: {
+                              'content': 'data(score)',
 	                          'line-color': 'black',
-	                          'width': 'mapData( score, 0,1,0,10)',
+	                          'width': 'mapData(score, 0.5, 1, 0, 20)',
 	                        }
 	                      },
 	                    ]
 	                });
-	            </script>""" % (div_id, style, json_str)
+
+                    cy.elements().components().forEach( (eles, i, components) => {
+                    let n = Math.floor( Math.sqrt( components.length ) );
+                    let w = 2000; // width of bb for 1 cmp
+                    let h = 2000; // height "
+
+                    eles.makeLayout({
+                        name: 'circle',
+                        boundingBox: {
+                        x1: w * (i %% n),
+      x2: w * (1 + (i %% n)),  // this line fixed
+      y1: Math.floor(i / n) * h,
+      y2: (1 + Math.floor(i / n)) * h
+                    }
+                    }).run();
+                    });
+	            </script>""" % (div_id, json_str)
 
 def elutionDatas_to_treeview(eDatas, foundprots):
 	out = {}
@@ -335,3 +319,18 @@ def elutionDatas_to_treeview(eDatas, foundprots):
 			out[prot].extend(scores)
 	return header, out
 
+
+def prep_network_for_cy(nodes, edges):
+	# Basic Setup
+	PORT_NUMBER = 1234
+	# IP = '192.168.1.1'
+	IP = 'localhost'
+	BASE = 'http://' + IP + ':' + str(PORT_NUMBER) + '/v1/'
+
+	# Header for posting data to the server as JSON
+	HEADERS = {'Content-Type': 'application/json'}
+	network_cy = {
+		'data': {'name': "EPIC clusters"},
+		"elements": {"nodes": nodes, 'edges': edges}
+	}
+	return BASE, json.dumps(network_cy), HEADERS
