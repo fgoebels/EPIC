@@ -59,14 +59,14 @@ def exp_comb(args):
 			print "j is to large"
 			sys.exit()
 
-		sel_iex = rnd.sample(iex_exp, i)
-		sel_beads = rnd.sample(beads_exp, j)
+		sel_iex = rnd.sample(iex_exp, num_iex)
+		sel_beads = rnd.sample(beads_exp, num_beads)
 		return sel_iex + sel_beads
 
 
 	# EPIC paramters
 	use_rf = True
-	this_scores = [ CS.Wcc(), CS.Poisson(5)]
+	this_scores = [ CS.MutualInformation(), CS.Bayes(3), CS.Jaccard(), CS.Poisson(5)]
 	no_reference_overlap = False
 	fs = False
 
@@ -88,7 +88,9 @@ def exp_comb(args):
 		print scores
 
 	outFH = open(output_dir + ".%i_%i.all.eval.txt" % (i, j), "w")
-	print >> outFH, "%s\n%s" % (out_head, "\n".join(all_scores))
+	print >> outFH, "Num_iex,\tNum_beads\t%s" % out_head
+	for score in all_scores:
+		print >> outFH, "%i\t%i\t%s" % (i,j, score)
 	outFH.close()
 
 
