@@ -46,7 +46,7 @@ class Goldstandard_from_PPIs():
 """
 
 def exp_comb(args):
-	i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, output_dir = args
+	FS, i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, output_dir = args
 
 	def get_eData_comb(data_dir, num_iex, num_beads):
 		all_exp =  map(str, glob.glob(data_dir + "*.txt"))
@@ -66,7 +66,9 @@ def exp_comb(args):
 
 	# EPIC paramters
 	use_rf = True
-	this_scores = [ CS.MutualInformation(), CS.Bayes(3), CS.Jaccard(), CS.Poisson(5)]
+	if FS == "00000000": sys.exit()
+	this_scores = get_fs_comb(FS)
+	print this_scores
 	no_reference_overlap = False
 	fs = False
 
@@ -419,10 +421,7 @@ def calc_feature_combination(args):
 	feature_combination, input_dir, use_rf, fs, num_cores, scoreF, ref_complexes, output_dir = args
 	#Create feature combination
 	if feature_combination == "00000000": sys.exit()
-	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
-	this_scores = []
-	for i, feature_selection in enumerate(feature_combination):
-		if feature_selection == "1": this_scores.append(scores[i])
+	this_scores = get_fs_comb(feature_combination)
 	num_cores = int(num_cores)
 	use_rf = use_rf == "True"
 	fs = fs =="True"
@@ -433,6 +432,14 @@ def calc_feature_combination(args):
 	outFH = open(output_dir + ".eval.wo.txt", "w")
 	print >> outFH, "%s\n%s" % (head, scores)
 	outFH.close()
+
+def get_fs_comb(comb_string):
+	#Create feature combination
+	scores = [CS.MutualInformation(2), CS.Bayes(3), CS.Euclidiean(), CS.Wcc(), CS.Jaccard(), CS.Poisson(5), CS.Pearson(), CS.Apex()]
+	this_scores = []
+	for i, feature_selection in enumerate(comb_string):
+		if feature_selection == "1": this_scores.append(scores[i])
+	return this_scores
 
 def main():
 	mode = sys.argv[1]
