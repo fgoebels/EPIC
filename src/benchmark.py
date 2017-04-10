@@ -45,6 +45,28 @@ class Goldstandard_from_PPIs():
 				self.goldstandard_negative.add(edge)
 """
 
+def cut(args):
+	fc, scoreF, outF = args
+	if fc == "00000000": sys.exit()
+	this_scores = get_fs_comb(fc)
+	scoreCalc = CS.CalculateCoElutionScores("", "", "","", cutoff=0.5)
+	empty_gs = GS.Goldstandard_from_Complexes()
+	empty_gs.positive = set([])
+	empty_gs.negative = set([])
+	scoreCalc.readTable(scoreF, empty_gs)
+	print scoreCalc.to_predict
+	feature_comb = feature_selector([fs.name for fs in this_scores], scoreCalc, [])
+	feature_comb.open()
+	outFH = open(outF, "w")
+	print >> outFH, "\t".join(feature_comb.scoreCalc.header)
+	for i in range(feature_comb.to_predict):
+		edge, edge_scores = feature_comb.get_next()
+		if edge == "" or edge_scores == []: continue
+		print >> outFH, "%s\t%s" % (edge, "\t".join(map(str, edge_scores)))
+	outFH.close()
+	feature_comb.close()
+
+
 def merge_MS(args):
 	def read_scores(scoreF, cutoff):
 		num_prots = CS.lineCount(scoreF)
@@ -286,8 +308,9 @@ class feature_selector:
 		self.valprots = valprots
 		self.get_cols(scoreCalc.header, feature_names)
 		self.cutoff = scoreCalc.cutoff
+		self.to_predict = scoreCalc.to_predict
 		self.scoreCalc = self.filter_scoreCalc(scoreCalc)
-		self.to_predict = self.scoreCalc.to_predict
+
 
 	def set_cutoff(self, cutoff):
 		self.cutoff = cutoff
@@ -306,7 +329,7 @@ class feature_selector:
 		return len(list(set(np.where(scores > self.cutoff)[0])))>0
 
 	def filter_score(self, scores):
-		if self.valid_score(scores):
+		if self.valid_score(scores[self.to_keep_score]):
 			return scores[self.to_keep_score]
 		else:
 			return []
@@ -335,7 +358,11 @@ class feature_selector:
 		return filtered_scoreCalc
 
 	def filter_scoreCalc(self, scoreCalc):
-		print scoreCalc.scores.shape
+		if scoreCalc.scores.shape[0] == 0: # scores are empty no filtering necessary
+			filtered_scoreCalc = copy.deepcopy(scoreCalc)
+			filtered_scoreCalc.header = np.array(filtered_scoreCalc.header)[self.to_keep_header]
+			filtered_scoreCalc.scores = filtered_scoreCalc.scores[:, self.to_keep_score]
+			return filtered_scoreCalc
 		filtered_scoreCalc = copy.deepcopy(scoreCalc)
 		if self.valprots != "": filtered_scoreCalc = self.filter_valprots(filtered_scoreCalc)
 		print filtered_scoreCalc.scores.shape
@@ -354,7 +381,8 @@ class feature_selector:
 		if edge =="":
 			return "", []
 		protA, protB = edge.split("\t")
-		if protA not in self.valprots or protB not in self.valprots:
+
+		if (protA not in self.valprots or protB not in self.valprots) and self.valprots != []:
 			return "", []
 		return edge, self.filter_score(scores)
 
@@ -527,6 +555,9 @@ def main():
 
 	elif mode == "-merge_ms":
 		merge_MS(sys.argv[2:])
+
+	elif mode == "-cut":
+		cut(sys.argv[2:])
 
 
 if __name__ == "__main__":

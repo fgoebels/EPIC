@@ -29,7 +29,8 @@ import urllib
 import urllib2
 import os 
 import re
-
+import gzip
+import requests
 
 
 # GLobal static objects used across the files
@@ -1023,7 +1024,7 @@ class ExternalEvidence:
 	# FilenameWithDic is the directory with filename for the etxernal functional evidence data
 	def __init__(self, FilenameWithDic):
 		self.FilenameWithDic = FilenameWithDic
-		self.scoreCalc = CalculateCoElutionScores()
+		self.scoreCalc = CalculateCoElutionScores("", "", "", 1)
 		#self.scoreCalc.readTable(FilenameWithDic)
 		self.scores = {}
 
@@ -1069,7 +1070,7 @@ class STRING:
 		# create a geneName mapping dictionary based on Uniprot website database
 		self.nameMapping()
 		# ScoreCalc object contains edges and it's associated STRING scores
-		self.scoreCalc = CalculateCoElutionScores()
+		self.scoreCalc = CalculateCoElutionScores("", "", "", 1)
 		# loads all of Worm Gene
 		self.load_string()
 
