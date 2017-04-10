@@ -37,7 +37,6 @@ import re
 
 # Load script for calculating Bayes correlation globally
 r=robjects.r
-print os.path.realpath(__file__)
 r.source(os.path.realpath(__file__).rsplit(os.sep,1)[0] + os.sep + "Bayes_Corr.R")
 
 cor1 = robjects.r["Bayes_Corr_Prior1"]

@@ -45,6 +45,55 @@ class Goldstandard_from_PPIs():
 				self.goldstandard_negative.add(edge)
 """
 
+def merge_MS(args):
+	def read_scores(scoreF, cutoff):
+		num_prots = CS.lineCount(scoreF)
+		scoreFH = open(scoreF)
+		header = scoreFH.readline().rstrip()
+		header = header.split("\t")
+		out = CS.CalculateCoElutionScores("", "", "", 4)
+		out.scores = np.zeros((num_prots , len(header[2:])))
+		out.header = header
+		i = 0
+		for line in scoreFH:
+			line = line.rstrip()
+			if line == "":continue
+			line = line.split("\t")
+			edge = "\t".join(line[:2])
+			this_score = np.array(map(float, line[2:]))
+			if len(list(set(np.where(this_score > cutoff)[0]))) > 0:
+				out.ppiToIndex[edge] = i
+				out.IndexToPpi[i] = edge
+				out.scores[i, :] = this_score
+				i += 1
+		out.scores = out.scores[0:i, :]
+		print i
+		return out
+
+	ms1_in, ms2_in, mode, cutoff, outF = args
+	cutoff = float(cutoff)
+
+	ms1 = read_scores(ms1_in, cutoff)
+	print "Done reading in MS2"
+	print ms1.scores.shape
+
+	ms2 = read_scores(ms2_in, cutoff)
+	print "Done reading in MS1"
+	print ms2.scores.shape
+
+
+	ms2.merge(ms1, mode)
+	print "Done merging MS1 and MS2"
+	print ms2.scores.shape
+
+
+	outFH = open(outF, "w")
+	print >> outFH, "\t".join(ms2.header)
+	for i in range(ms2.scores.shape[0]):
+		if len(list(set(np.where(ms2.scores[i, :] > 0.5)[0]))) > 0:
+			print >> outFH, "%s\t%s" % (ms2.IndexToPpi[i], "\t".join(map(str, ms2.scores[i, :])))
+	outFH.close()
+
 def exp_comb(args):
 	FS, i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, output_dir = args
 
@@ -72,6 +121,10 @@ def exp_comb(args):
 	no_reference_overlap = False
 	fs = False
 
+	#global reference data set, since we don't want to compare with artifical smaller reference data set
+	foundprots, _ = utils.load_data(input_dir, [])
+	global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+
 	i,j, num_iter, num_cores = map(int, [i, j, num_iter, num_cores])
 	if i == 0 and j == 0: sys.exit()
 
@@ -79,10 +132,13 @@ def exp_comb(args):
 	all_scores = []
 
 	for iter in range(num_iter):
+		rnd.seed()
 		this_eprofiles = get_eData_comb(input_dir, i, j)
-		print this_eprofiles
-		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i" % iter,
-														  no_reference_overlap, ref_complexes=ref_complexes, fs=fs)
+		rnd.seed(1)
+		print [f.split(os.sep)[-1] for f in this_eprofiles]
+
+		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
+														  no_reference_overlap, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
 
 		out_head = head
 		all_scores.append(scores)
@@ -328,7 +384,7 @@ def bench_Bayes(args):
 					,[CS.Bayes(3)]]
 
 	for bayes_comb in combinations:
-		tmp_head, tmp_scores = run_epic_with_feature_combinations(bayes_comb, input_dir, 4, True, scoreF, output_dir,
+		tmp_head, tmp_scores = run_epic_with_feature_combinations(bayes_comb, input_dir, 4, True, scoreF, output_dir ,
 										   no_overlap_in_training=False, ref_complexes=ref_compF)
 		out_head = tmp_head
 		out_scores.append(tmp_scores)
@@ -339,7 +395,7 @@ def bench_Bayes(args):
 
 	print "%s\n%s" % (out_head, "\n".join(out_scores))
 
-def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores, use_rf, scoreF,  output_dir, no_overlap_in_training, ref_complexes="", taxid="", fs = ""):
+def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores, use_rf, scoreF,  output_dir, no_overlap_in_training, ref_complexes="", taxid="", fs = "", globalGS = ""):
 	if ref_complexes !="" and taxid!="":
 		print "Suplly either taxid or reference complex file"
 		sys.exit()
@@ -348,11 +404,14 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	clf = CS.CLF_Wrapper(num_cores, use_rf, useFeatureSelection=fs)
 
 	foundprots, elution_datas = utils.load_data(input_dir, feature_combination)
-	if taxid != "": all_gs = utils.create_goldstandard(taxid, foundprots)
-	if ref_complexes != "":
-		print "Loading reference from file"
-		print ref_complexes
-		all_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+	if globalGS == "":
+		if taxid != "": all_gs = utils.create_goldstandard(taxid, foundprots)
+		if ref_complexes != "":
+			print "Loading reference from file"
+			print ref_complexes
+			all_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+	else:
+		all_gs = globalGS
 
 	print len(all_gs.positive)
 	print len(all_gs.negative)
@@ -376,7 +435,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	out_prefix = "_".join([fs.name for fs in feature_combination])
 	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()), no_overlapp=no_overlap_in_training)
 
-# 	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
+ #	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
 
 	print "Num valid ppis in training pos: %i" % len(train.positive)
 	print "Num valid ppis in training neg: %i" % len(train.negative)
@@ -406,6 +465,10 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 		e_s, e_h = utils.clustering_evaluation(eval.complexes, pred_clusters, "Eval", True)
 		out_head = "FS\tNum PPIs\tNum Clusters\t%s\t%s" % (t_h, e_h)
 		out_scores = "%s\t%i\t%i\t%s\t%s" % (out_prefix, num_ppis, num_cluster, t_s, e_s)
+		if globalGS!="":
+			g_s, g_h = utils.clustering_evaluation(globalGS.complexes, pred_clusters, "Global", True)
+			out_head += "\t%s" % g_h
+			out_scores += "\t%s" % g_s
 		return out_head, out_scores
 	else:
 		head_t = "\t".join(["%s %s" % ("Train", h) for h in
@@ -461,6 +524,9 @@ def main():
 
 	elif mode == "-exp_comb":
 		exp_comb(sys.argv[2:])
+
+	elif mode == "-merge_ms":
+		merge_MS(sys.argv[2:])
 
 
 if __name__ == "__main__":
