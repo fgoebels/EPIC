@@ -134,7 +134,7 @@ def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
 		br_network = []
 		for edge in br_edges:
 			if edge in exp: score = exp[edge]
-			else: score = fa[edge]
+			else: score = merged[edge]
 			br_network.append("%s\t%s" % (edge, score))
 		return br_network
 
