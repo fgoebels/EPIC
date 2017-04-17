@@ -38,6 +38,11 @@ class Goldstandard_from_Complexes():
 		print "Total number of complexes %i in %s" % (total_complexes, self.name)
 		print "Number of complexes after ortholog mapping %i complexes in %s" % (len(self.complexes.complexes), self.name)
 
+		if found_prots != "":
+			self.complexes.remove_proteins(found_prots)
+			self.complexes.lb = 2
+			self.complexes.filter_complexes()
+			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
 		self.complexes.filter_complexes()
 		print "After size filtering %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
@@ -46,12 +51,7 @@ class Goldstandard_from_Complexes():
 		self.complexes.filter_complexes()
 		print "After mergning %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
-		if found_prots != "":
-			self.complexes.remove_proteins(found_prots)
-			self.complexes.lb = 2
-			self.complexes.merge_complexes()
-			self.complexes.filter_complexes()
-			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
+
 
 		self.make_pos_neg_ppis()
 
