@@ -49,6 +49,7 @@ class Goldstandard_from_Complexes():
 		if found_prots != "":
 			self.complexes.remove_proteins(found_prots)
 			self.complexes.lb = 2
+			self.complexes.merge_complexes()
 			self.complexes.filter_complexes()
 			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 

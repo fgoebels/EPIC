@@ -95,16 +95,16 @@ def merge_MS(args):
 	ms1_in, ms2_in, mode, cutoff, outF = args
 	cutoff = float(cutoff)
 
-	ms1 = read_scores(ms1_in, 0)
+	ms1 = read_scores(ms1_in, cutoff)
 	print "Done reading in MS1"
 	print ms1.scores.shape
 
-	ms2 = read_scores(ms2_in, 0.5)
+	ms2 = read_scores(ms2_in, cutoff)
 	print "Done reading in MS2"
 	print ms2.scores.shape
 
 
-	ms2.merge(ms1, "l")
+	ms2.merge(ms1, mode)
 	print "Done merging MS1 and MS2"
 	print ms2.scores.shape
 
