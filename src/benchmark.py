@@ -95,16 +95,16 @@ def merge_MS(args):
 	ms1_in, ms2_in, mode, cutoff, outF = args
 	cutoff = float(cutoff)
 
-	ms1 = read_scores(ms1_in, cutoff)
-	print "Done reading in MS2"
+	ms1 = read_scores(ms1_in, 0)
+	print "Done reading in MS1"
 	print ms1.scores.shape
 
-	ms2 = read_scores(ms2_in, cutoff)
-	print "Done reading in MS1"
+	ms2 = read_scores(ms2_in, 0.5)
+	print "Done reading in MS2"
 	print ms2.scores.shape
 
 
-	ms2.merge(ms1, mode)
+	ms2.merge(ms1, "l")
 	print "Done merging MS1 and MS2"
 	print ms2.scores.shape
 
@@ -168,7 +168,7 @@ def exp_comb(args):
 		print scores
 
 	outFH = open(output_dir + ".%i_%i.all.eval.txt" % (i, j), "w")
-	print >> outFH, "Num_iex,\tNum_beads\t%s" % out_head
+	print >> outFH, "Num_iex\tNum_beads\t%s" % out_head
 	for score in all_scores:
 		print >> outFH, "%i\t%i\t%s" % (i,j, score)
 	outFH.close()
@@ -352,7 +352,7 @@ class feature_selector:
 			if pA in self.valprots and pB in self.valprots:
 				to_keep_rows.append(i)
 		to_keep_rows = np.array(to_keep_rows)
-		print "NUm val ppis: %i" % len(to_keep_rows)
+		print "Num val ppis: %i" % len(to_keep_rows)
 		filtered_scoreCalc.scores = filtered_scoreCalc.scores[to_keep_rows, :]
 		self.update_ppi_map(filtered_scoreCalc, to_keep_rows)
 		return filtered_scoreCalc
@@ -379,10 +379,12 @@ class feature_selector:
 	def get_next(self):
 		edge, scores = self.scoreCalc.get_next()
 		if edge =="":
+			print "recieved empty edge"
 			return "", []
 		protA, protB = edge.split("\t")
 
 		if (protA not in self.valprots or protB not in self.valprots) and self.valprots != []:
+			print "not elution profile for edge %s\t%s" % (protA, protB)
 			return "", []
 		return edge, self.filter_score(scores)
 
@@ -431,7 +433,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 
 	clf = CS.CLF_Wrapper(num_cores, use_rf, useFeatureSelection=fs)
 
-	foundprots, elution_datas = utils.load_data(input_dir, feature_combination)
+	foundprots, elution_datas = utils.load_data(input_dir, [])
 	if globalGS == "":
 		if taxid != "": all_gs = utils.create_goldstandard(taxid, foundprots)
 		if ref_complexes != "":
@@ -463,7 +465,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	out_prefix = "_".join([fs.name for fs in feature_combination])
 	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()), no_overlapp=no_overlap_in_training)
 
- #	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
+ 	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
 
 	print "Num valid ppis in training pos: %i" % len(train.positive)
 	print "Num valid ppis in training neg: %i" % len(train.negative)

@@ -31,7 +31,7 @@ def main():
 #	print len(all_gs.positive)
 #	print len(all_gs.negative)
 
-	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores)
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff=0)
 	scoreCalc.calculate_coelutionDatas(all_gs)
 #	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print len(set(scoreCalc.ppiToIndex.keys()))
