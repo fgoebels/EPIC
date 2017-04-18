@@ -91,6 +91,29 @@ def predictInteractions(scoreCalc, clf, gs, verbose= False):
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	return out
 
+def get_FA_data(anno_source):
+	functionalData = ""
+	if anno_source == "GM":
+
+		genemania = CS.Genemania("6239")
+		functionalData = genemania.getScoreCalc()
+
+	elif anno_source == "STRING":
+
+		string = CS.STRING("6239")
+		functionalData = string.getScoreCalc()
+
+	elif anno_source == "FILE":
+
+		# the supplied functional evidence data needs to have the correct header row...
+		externaldata = CS.ExternalEvidence(
+			"directory of your functional evidence data, need to have the correct header")
+		functionalData = externaldata.getScoreCalc()
+
+	else:
+		print "EPIC only support GeneMane, STRING, and flat file input please use the followign tags for anno_source GM, STRING, FILE"
+		sys.exit()
+	return functionalData
 
 def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
 	def get_edges_from_network(network):
@@ -176,6 +199,7 @@ def create_goldstandard(target_taxid, valprots):
 	if target_taxid !="9606":
 		orthmap = GS.Inparanoid(taxid=target_taxid)
 		reference_clusters = [GS.Intact_clusters(True), GS.CORUM(True), GS.QuickGO("9606", True), GS.QuickGO(target_taxid, False)]
+		#reference_clusters = [GS.Intact_clusters(True)]
 	else:
 		reference_clusters = [GS.Intact_clusters(False), GS.CORUM(False), GS.QuickGO("9606", False)]
 		orthmap = ""

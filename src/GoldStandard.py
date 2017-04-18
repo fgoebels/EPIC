@@ -27,13 +27,15 @@ class Goldstandard_from_Complexes():
 
 	def make_reference_data(self, db_clusters, orthmap="", found_prots=""):
 		total_complexes = 0
+		i = 0
 		for db_clust in db_clusters:
 			tmp_clust = copy.deepcopy(db_clust.get_complexes())
 			total_complexes += len(tmp_clust.complexes.keys())
 			if tmp_clust.need_to_be_mapped == True and orthmap !="":
 				orthmap.mapComplexes(tmp_clust)
 			for compl in tmp_clust.complexes:
-				self.complexes.addComplex(compl, tmp_clust.complexes[compl])
+				self.complexes.addComplex(i, tmp_clust.complexes[compl])
+				i += 1
 
 		print "Total number of complexes %i in %s" % (total_complexes, self.name)
 		print "Number of complexes after ortholog mapping %i complexes in %s" % (len(self.complexes.complexes), self.name)
@@ -44,14 +46,14 @@ class Goldstandard_from_Complexes():
 			self.complexes.filter_complexes()
 			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
+
+
 		self.complexes.filter_complexes()
 		print "After size filtering %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
 		self.complexes.merge_complexes()
 		self.complexes.filter_complexes()
 		print "After mergning %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
-
-
 
 		self.make_pos_neg_ppis()
 
