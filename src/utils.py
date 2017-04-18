@@ -55,7 +55,6 @@ def plotCurves(curves, outF, xlab, ylab):
 def predictInteractions(scoreCalc, clf, gs, verbose= False):
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(gs)
 	clf.fit(data_train, targets_train)
-	print data_train.shape
 	num_features = data_train.shape[1]
 	def getPredictions(scores, edges, clf):
 		out = []
