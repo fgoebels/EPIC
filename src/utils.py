@@ -272,7 +272,7 @@ def clusters_to_json(clusters, network, frac_names, eData):
 
 def json_to_cy_js(div_id, json_str):
 	return """
-	            <script>
+
 	                $('#cy').show();
 	                var cy = window.cy = cytoscape({
 	                    container: document.getElementById('%s'),
@@ -320,7 +320,7 @@ def json_to_cy_js(div_id, json_str):
                     }
                     }).run();
                     });
-	            </script>""" % (div_id, json_str)
+	            """ % (div_id, json_str)
 
 def elutionDatas_to_treeview(eDatas, foundprots):
 	out = {}
