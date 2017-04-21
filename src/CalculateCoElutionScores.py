@@ -1016,7 +1016,7 @@ class CLF_Wrapper:
 		return preds
 	
 # @ author: Lucas Ming Hu
-# This is ahelper function can help users to read their personal evidence file as extra functional evidence and integrate into the pipeline.
+# This is a helper function can help users to read their personal evidence file as extra functional evidence and integrate into the pipeline.
 class ExternalEvidence:
 
 	# author: Lucas Ming Hu
