@@ -1,9 +1,10 @@
 from __future__ import division
 import numpy as np
-import copy, os, sys
+import copy, os, sys, re
 import CalculateCoElutionScores as CS
 import GoldStandard as GS
 import utils as utils
+import matplotlib.pyplot as plt
 from scipy.spatial import distance
 from scipy.stats import zscore
 import glob
@@ -92,14 +93,28 @@ def merge_MS(args):
 		print i
 		return out
 
-	ms1_in, ms2_in, mode, cutoff, outF = args
-	cutoff = float(cutoff)
+	ms1_in, ms2_in, mode, outF = args
+	ms1cutoff = 0
+	ms2cutoff = 0
 
-	ms1 = read_scores(ms1_in, cutoff)
+	if mode == "i":
+		ms1cutoff = 0.5
+		ms2cutoff = 0.5
+	if mode == "u":
+		ms1cutoff = 0
+		ms2cutoff = 0
+	if mode == "l":
+		ms1cutoff = 0
+		ms2cutoff = 0.5
+	if mode == "r":
+		ms1cutoff = 0.5
+		ms2cutoff = 0
+
+	ms1 = read_scores(ms1_in, ms1cutoff)
 	print "Done reading in MS1"
 	print ms1.scores.shape
 
-	ms2 = read_scores(ms2_in, cutoff)
+	ms2 = read_scores(ms2_in, ms2cutoff)
 	print "Done reading in MS2"
 	print ms2.scores.shape
 
@@ -158,7 +173,7 @@ def exp_comb(args):
 		this_eprofiles = get_eData_comb(input_dir, i, j)
 		rnd.seed(1)
 		print [f.split(os.sep)[-1] for f in this_eprofiles]
-
+		this_foundprots, _ = utils.load_data(this_eprofiles, [])
 		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
 														  no_reference_overlap, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
 
@@ -198,6 +213,27 @@ def EPIC_cor(args):
 
 
 
+def EPIC_eval_fs(args):
+	in_dir, refF, outF = args
+	ref_clusters = GS.Clusters(False)
+	ref_clusters.read_file(refF)
+	outFH = open(outF, "w")
+	i = 0
+	allFiles = paths = [os.path.join(in_dir,fn) for fn in next(os.walk(in_dir))[2]]
+	for file in allFiles:
+		if not file.endswith("clust.txt"): continue
+		pred_clusters = GS.Clusters(False)
+		pred_clusters.read_file(file)
+		filesplit = file.split(".")[0:4]
+		fs_comp = filesplit[0].split(os.sep)[-1]
+		scores, head =  utils.clustering_evaluation(ref_clusters, pred_clusters, "Eval", False)
+		if i == 0:
+			print "FS_code\tCLF\tSE\tFS\tNum_complexes" + "\t".join(np.array(head.split("\t"))[[0,1,6]])
+			print >> outFH, "FS_code\tCLF\tSE\tFS\tNum_complexes" + "\t".join(np.array(head.split("\t"))[[0,1,6]])
+		print fs_comp + "\t" + "\t".join(filesplit[1:4]) + "\t"+ str(len(pred_clusters.complexes))+"\t" + "\t".join(np.array(scores.split("\t"))[[0, 1, 6]])
+		print >> outFH, fs_comp + "\t" + "\t".join(filesplit[1:4]) + "\t"+ str(len(pred_clusters.complexes))+"\t" + "\t".join(np.array(scores.split("\t"))[[0, 1, 6]])
+		i += 1
+	outFH.close()
 
 def EPIC_eval_fs_DIST(args):
 
@@ -246,17 +282,44 @@ def EPIC_eval_fs_DIST(args):
 
 	all_scores = {}
 
-	fs_eval_Files, outfile = args
+	fs_eval_Files, outDir = args
 
 	header, fs, vals, zvals = epic_read_eval(fs_eval_Files)
 	fs = np.array(fs)
 
+	def make_hists(x, header, outDir):
+		fig = plt.figure()
+		plt.rcParams.update({'font.size': 8})
+		for i in range(len(header)):
+			scores = x[:,i]
+
+			ax = fig.add_subplot(3,4, i+1)
+			ax.hist(scores)
+			ax.set_title(header[i].replace(" ", "_"), fontsize=6)
+			for tick in ax.get_xticklabels():
+				tick.set_rotation(45)
+
+		fig.tight_layout()
+		fig.subplots_adjust(top=0.88)
+		plt.savefig(outDir + ".hist.pdf")
+		plt.close()
+
 #	filtering feature selection with low number of predicted clusters
-	sel_vals = list(np.where(vals[:, 1] >= 100)[0])
+
+	sel_vals = set(range(len(vals[:,1])))
+	for k in range(len(header)):
+		this_lb = np.percentile(vals[:, k], 5)
+		this_ub = np.percentile(vals[:, k], 95)
+		sel_vals &= set(np.where(vals[:, k] > this_lb)[0]) & set(np.where(vals[:, k] < this_ub)[0])
+
+	sel_vals = list(sel_vals)
+
 	vals = vals[sel_vals,]
 	zvals = zvals[sel_vals,]
 	fs = np.array(fs)[sel_vals,]
 
+	make_hists(vals, header, outDir + ".raw")
+	make_hists(zvals, header, outDir + ".zscore")
 
 	this_max_val_fc = []
 	this_max_vals = []
@@ -276,18 +339,19 @@ def EPIC_eval_fs_DIST(args):
 		this_f = fs[i]
 		this_vals = getScore(zvals[i,:])
 		this_dist = dist(this_vals,max_vals)
-		scores[this_f] = this_dist
+		summed_zscores = sum(this_vals)
+		scores[this_f] = summed_zscores
 
 	best_dist = min(scores.values())
 	scores_sorted = sorted(scores, key=scores.get)
 
-	outFH = open(outfile, "w")
-	print >> outFH, "Artifical optimal vector"
-	print >> outFH, "\t" + "\t".join(header)
-	print >> outFH, "Scores:\t" + "\t".join(map(lambda x : "%.2f" % x, this_max_vals))
-	print >> outFH, "Optimal FS per category:\t" + "\t".join(this_max_val_fc)
+	outFH = open(outDir + ".results.txt", "w")
+#	print >> outFH, "Artifical optimal vector"
+#	print >> outFH, "\t" + "\t".join(header)
+#	print >> outFH, "Scores:\t\t" + "\t".join(map(lambda x : "%.2f" % x, this_max_vals))
+#	print >> outFH, "Optimal FS per category:\t" + "\t".join(this_max_val_fc)
 
-	print >> outFH, "Distance\tFS\t" + "\t".join(header)
+	print >> outFH, "Summed_Zscores\tFS\t" + "\t".join(header)
 	for  f in scores_sorted:
 		score = scores[f]
 		f_scores = "\t".join(map(lambda x : "%.2f" % x, vals[np.where(fs == f)[0], :][0]))
@@ -400,7 +464,7 @@ class feature_selector:
 def write_reference(args):
 	input_dir, taxid, output_dir = args
 	foundprots, elution_datas = utils.load_data(input_dir, [])
-	gs = utils.create_goldstandard(taxid, foundprots)
+	gs = utils.create_goldstandard(taxid, "")
 	out = gs.complexes.to_string()
 	outFH = open(output_dir, "w")
 	print >> outFH, out
@@ -534,6 +598,7 @@ def get_fs_comb(comb_string):
 		if feature_selection == "1": this_scores.append(scores[i])
 	return this_scores
 
+
 def main():
 	mode = sys.argv[1]
 
@@ -560,7 +625,8 @@ def main():
 
 	elif mode == "-cut":
 		cut(sys.argv[2:])
-
+	elif mode == "-best_fs2":
+		EPIC_eval_fs(sys.argv[2:])
 
 if __name__ == "__main__":
 	try:

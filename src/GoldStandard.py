@@ -234,6 +234,8 @@ class Clusters():
 			out.append("\t".join(prots))
 		return "\n".join(out)
 
+
+
 	# @author Florian Goebels
 	# creats all possible positive and negative protein interactions based on CORUM complex membership
 	def getPositiveAndNegativeInteractions(self):
@@ -334,34 +336,38 @@ class Clusters():
 			if ref_complex not in matchingscores: matchingscores[ref_complex] = 0
 			for complex in self.complexes:
 				matchingscores[ref_complex] = max(matchingscores[ref_complex], self.overlap(self.complexes[complex],  reference.complexes[ref_complex]))
-
 		mmr = matchingscores.values()
 		mmr = sum(mmr)/len(mmr)
 		return mmr
 
-	def frac_match_comp(self, reference):
+	def get_matching_complexes(self, reference):
 		out_simcoe = set([])
 		out_overlap = set([])
 		out_comb = set([])
-		def simco(a,b):
+
+		def simco(a, b):
 			tmpa = set(a)
 			tmpb = set(b)
-			return len(tmpa&tmpb)/(min(len(tmpa), len(tmpb)))
+			return len(tmpa & tmpb) / (min(len(tmpa), len(tmpb)))
 
-		for complex in self.complexes:
+		for this_complex in self.complexes:
 			for ref_complex in reference.complexes:
-				overlap_score = self.overlap(self.complexes[complex],  reference.complexes[ref_complex])
-				simco_score = simco(self.complexes[complex],  reference.complexes[ref_complex])
+				overlap_score = self.overlap(self.complexes[this_complex], reference.complexes[ref_complex])
+				simco_score = simco(self.complexes[this_complex], reference.complexes[ref_complex])
 				if overlap_score >= 0.25:
-					out_overlap.add(complex)
+					out_overlap.add(this_complex)
 				if simco_score > 0.5:
-					out_simcoe.add(complex)
-				if (simco_score+overlap_score)/2 >= 0.375:
-					out_comb.add(complex)
+					out_simcoe.add(this_complex)
+				if (simco_score + overlap_score) / 2 >= 0.375:
+					out_comb.add(this_complex)
 
+		return out_simcoe, out_overlap, out_comb
+
+	def frac_match_comp(self, reference):
 		if len(self.complexes) == 0:
 			return "0\t0\t0"
 		else:
+			out_simcoe, out_overlap, out_comb = self.get_matching_complexes(reference)
 			out_overlap = len(out_overlap)/len(self.complexes)
 			out_simcoe = len(out_simcoe)/len(self.complexes)
 			out_comb = len(out_comb) / len(self.complexes)
