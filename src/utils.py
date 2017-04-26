@@ -106,7 +106,8 @@ def get_FA_data(anno_source):
 
 		# the supplied functional evidence data needs to have the correct header row...
 		externaldata = CS.ExternalEvidence(
-			"directory of your functional evidence data, need to have the correct header")
+			"/Users/lucasminghu/Desktop/WormMap/WormNet/WormNet_20170315_removing_physicalPPIs.txt")
+		externaldata.readFile()
 		functionalData = externaldata.getScoreCalc()
 
 	else:
@@ -152,7 +153,7 @@ def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
 		exp = get_edges_from_network(networks[0])
 		fa = get_edges_from_network(networks[1])
 		merged = get_edges_from_network(networks[2])
-		br_edges = set(exp.keys()) + (set(merged.keys()) - set(fa.keys()))
+		br_edges = set(exp.keys()) | (set(merged.keys()) - set(fa.keys()))
 		br_network = []
 		for edge in br_edges:
 			if edge in exp: score = exp[edge]
