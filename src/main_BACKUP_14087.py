@@ -31,10 +31,16 @@ def main():
 #	print len(all_gs.positive)
 #	print len(all_gs.negative)
 
-
-	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
+<<<<<<< HEAD
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff=0)
 	scoreCalc.calculate_coelutionDatas(all_gs)
+	sys.exit()
 #	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+=======
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0.5)
+#	scoreCalc.calculate_coelutionDatas(all_gs)
+	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+>>>>>>> cea3c6741ecb0ed66a60214fd9c8102812a602ca
 	print len(set(scoreCalc.ppiToIndex.keys()))
 	train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 

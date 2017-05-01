@@ -224,6 +224,7 @@ def EPIC_eval_fs(args):
 		if not file.endswith("clust.txt"): continue
 		pred_clusters = GS.Clusters(False)
 		pred_clusters.read_file(file)
+		_, overlap, _ = pred_clusters.get_matching_complexes(ref_clusters)
 		filesplit = file.split(".")[0:4]
 		fs_comp = filesplit[0].split(os.sep)[-1]
 		scores, head =  utils.clustering_evaluation(ref_clusters, pred_clusters, "Eval", False)
@@ -239,7 +240,7 @@ def EPIC_eval_fs_DIST(args):
 
 	def getScore(scores):
 		out = []
-		for cat in [[0],[1, 2], [3, 4], [6], [7], [9]]:
+		for cat in [[2], [3], [8]]:
 			out.append(sum(scores[cat])/len(cat))
 		return out
 
@@ -306,12 +307,15 @@ def EPIC_eval_fs_DIST(args):
 
 #	filtering feature selection with low number of predicted clusters
 
-	sel_vals = set(range(len(vals[:,1])))
-	for k in range(len(header)):
-		this_lb = np.percentile(vals[:, k], 5)
-		this_ub = np.percentile(vals[:, k], 95)
-		sel_vals &= set(np.where(vals[:, k] > this_lb)[0]) & set(np.where(vals[:, k] < this_ub)[0])
+#	sel_vals = set(range(len(vals[:,1])))
+#	for k in range(len(header)):
+#		this_lb = np.percentile(vals[:, k], 5)
+#		this_ub = np.percentile(vals[:, k], 95)
+#		sel_vals &= set(np.where(vals[:, k] > this_lb)[0]) & set(np.where(vals[:, k] < this_ub)[0])
 
+
+	print header[1]
+	sel_vals = np.where(vals[:, 1] > 100)[0]
 	sel_vals = list(sel_vals)
 
 	vals = vals[sel_vals,]
@@ -334,28 +338,31 @@ def EPIC_eval_fs_DIST(args):
 #	print max_zvals
 #	print max_vals
 
+
+	composit_scores = {}
 	scores = {}
 	for i in range(len(fs)):
 		this_f = fs[i]
 		this_vals = getScore(zvals[i,:])
 		this_dist = dist(this_vals,max_vals)
 		summed_zscores = sum(this_vals)
-		scores[this_f] = summed_zscores
+		composit_scores[this_f] = summed_zscores
+		scores[this_f] = this_dist
 
-	best_dist = min(scores.values())
 	scores_sorted = sorted(scores, key=scores.get)
 
 	outFH = open(outDir + ".results.txt", "w")
-#	print >> outFH, "Artifical optimal vector"
-#	print >> outFH, "\t" + "\t".join(header)
-#	print >> outFH, "Scores:\t\t" + "\t".join(map(lambda x : "%.2f" % x, this_max_vals))
-#	print >> outFH, "Optimal FS per category:\t" + "\t".join(this_max_val_fc)
+	print >> outFH, "Artifical optimal vector"
+	print >> outFH, "\t" + "\t".join(header)
+	print >> outFH, "Scores:\t\t\t" + "\t".join(map(lambda x : "%.2f" % x, this_max_vals))
+	print >> outFH, "Optimal FS per category:\t" + "\t".join(this_max_val_fc)
 
-	print >> outFH, "Summed_Zscores\tFS\t" + "\t".join(header)
+	print >> outFH, "Composit_scorte\tDistance\tFS\t" + "\t".join(header)
 	for  f in scores_sorted:
 		score = scores[f]
+		c_score = composit_scores[f]
 		f_scores = "\t".join(map(lambda x : "%.2f" % x, vals[np.where(fs == f)[0], :][0]))
-		print >> outFH, "%.2f\t%s\t%s" % (score, f, f_scores)
+		print >> outFH, "%.2f\t%.2f\t%s\t%s" % (c_score, score, f, f_scores)
 	outFH.close()
 
 def Goldstandard_from_cluster_File(gsF, foundprots = ""):
@@ -503,7 +510,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 		if ref_complexes != "":
 			print "Loading reference from file"
 			print ref_complexes
-			all_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+			all_gs = Goldstandard_from_cluster_File(ref_complexes, "")
 	else:
 		all_gs = globalGS
 
@@ -528,6 +535,10 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 
 	out_prefix = "_".join([fs.name for fs in feature_combination])
 	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()), no_overlapp=no_overlap_in_training)
+
+	print len(all_gs.complexes.complexes)
+	print len(train.complexes.complexes)
+	print len(eval.complexes.complexes)
 
  	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
 
