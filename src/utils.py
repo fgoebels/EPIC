@@ -90,7 +90,7 @@ def predictInteractions(scoreCalc, clf, gs, verbose= False):
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	return out
 
-def get_FA_data(anno_source):
+def get_FA_data(anno_source, file=""):
 	functionalData = ""
 	if anno_source == "GM":
 
@@ -105,14 +105,12 @@ def get_FA_data(anno_source):
 	elif anno_source == "FILE":
 
 		# the supplied functional evidence data needs to have the correct header row...
-		externaldata = CS.ExternalEvidence(
-			"/Users/lucasminghu/Desktop/WormMap/WormNet/WormNet_20170315_removing_physicalPPIs.txt")
+		externaldata = CS.ExternalEvidence(file)
 		externaldata.readFile()
 		functionalData = externaldata.getScoreCalc()
 
 	else:
-		print "EPIC only support GeneMane, STRING, and flat file input please use the followign tags for anno_source GM, STRING, FILE"
-		sys.exit()
+		print "EPIC only support GeneMane, STRING, and flat file input please use the followign tags for anno_source GM, STRING, FILE. Returning empty string object."
 	return functionalData
 
 def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
