@@ -5,6 +5,8 @@ import GoldStandard as GS
 import utils as utils
 import sys
 
+
+
 def main():
 	feature_combination, input_dir, use_rf, num_cores, mode, anno_source, target_taxid, output_dir = sys.argv[1:]
 
@@ -33,8 +35,8 @@ def main():
 
 
 	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
-	scoreCalc.calculate_coelutionDatas(all_gs)
-#	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+#	scoreCalc.calculate_coelutionDatas(all_gs)
+	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print len(set(scoreCalc.ppiToIndex.keys()))
 	train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 

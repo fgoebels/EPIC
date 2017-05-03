@@ -50,6 +50,7 @@ def plotCurves(curves, outF, xlab, ylab):
 		lgd = plt.legend(loc=9, bbox_to_anchor=(0.5, -0.1),  ncol = 5, fontsize=8)
 		art.append(lgd)
 	plt.savefig(outF, additional_artists=art, bbox_inches="tight")
+	plt.close()
 
 # @author Florian Goebels
 def predictInteractions(scoreCalc, clf, gs, verbose= False):
