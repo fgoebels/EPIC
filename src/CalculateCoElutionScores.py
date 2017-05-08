@@ -768,6 +768,8 @@ class CalculateCoElutionScores():
 		allPPIs = ""
 		if mode == "u":
 			allPPIs = set(self.ppiToIndex.keys()) | set(toMerge.ppiToIndex.keys())
+		print len(set(toMerge.ppiToIndex.keys()))
+		print len(allPPIs)
 		if mode == "l":
 			allPPIs = set(self.ppiToIndex.keys())
 		if mode == "r":
@@ -1027,6 +1029,8 @@ class ExternalEvidence:
 		self.scoreCalc = CalculateCoElutionScores("", "", "", 1)
 		#self.scoreCalc.readTable(FilenameWithDic)
 		self.scores = {}
+		print "Fuu"
+		self.readFile()
 
 	# @ author: Lucas Ming Hu
 	# read external functional evidence, user can supply the external functional evidence as they want to integrate into the experimental data
@@ -1034,6 +1038,11 @@ class ExternalEvidence:
 
 		#first, read the external functional evidence data into a dictionary
 		with open(self.FilenameWithDic) as fp:
+			header = fp.readline()
+			header = header.rstrip()
+			print header
+			for evidence in header.split("\t")[2:]:
+				self.scoreCalc.header.append(evidence)
 			for line in fp:
 				names = line.rstrip().split("\t")
 				if names[0] == "protein1":

@@ -134,6 +134,7 @@ def merge_MS(args):
 def exp_comb(args):
 	FS, i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, output_dir = args
 
+	search_engine = input_dir.split(os.path.sep)[-2]
 	def get_eData_comb(data_dir, num_iex, num_beads):
 		all_exp =  map(str, glob.glob(data_dir + "*.txt"))
 		iex_exp = [f for f in all_exp if (f.split(os.sep)[-1].startswith("all"))]
@@ -159,8 +160,12 @@ def exp_comb(args):
 	fs = False
 
 	#global reference data set, since we don't want to compare with artifical smaller reference data set
-	foundprots, _ = utils.load_data(input_dir, [])
+	foundprots, eDatas = utils.load_data(input_dir, [])
 	global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+
+	eDataToprots = {}
+	for eData in eDatas:
+		eDataToprots[eData.name] = set(eData.prot2Index.keys())
 
 	i,j, num_iter, num_cores = map(int, [i, j, num_iter, num_cores])
 	if i == 0 and j == 0: sys.exit()
@@ -168,24 +173,31 @@ def exp_comb(args):
 	out_head = ""
 	all_scores = []
 
-	for iter in range(num_iter):
-		rnd.seed()
-		this_eprofiles = get_eData_comb(input_dir, i, j)
-		rnd.seed(1)
-		print [f.split(os.sep)[-1] for f in this_eprofiles]
-		this_foundprots, _ = utils.load_data(this_eprofiles, [])
-		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
-														  no_reference_overlap, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
-
-		out_head = head
-		all_scores.append(scores)
-		print head
-		print scores
+	for i in range(8):
+		for j in range(10):
+			if i==0 and j==0: continue
+			for iter in range(num_iter):
+				rnd.seed()
+				this_eprofiles = get_eData_comb(input_dir, i, j)
+				rnd.seed(1)
+				this_foundprots = set([])
+				print this_eprofiles[0]
+				for eF in this_eprofiles:
+					this_foundprots |= eDataToprots[os.path.split(eF)[-1]]
+		#		print [f.split(os.sep)[-1] for f in this_eprofiles]
+		#		this_foundprots, _ = utils.load_data(this_eprofiles, [])
+			#	head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
+			#													  no_reference_overlap, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
+				print len(this_foundprots)
+				out_head = "Num_prots"
+				all_scores.append("%i\t%i\t%s\t%i" % (i,j,search_engine, len(this_foundprots)))
+		#		print head
+		#		print scores
 
 	outFH = open(output_dir + ".%i_%i.all.eval.txt" % (i, j), "w")
-	print >> outFH, "Num_iex\tNum_beads\t%s" % out_head
+	print >> outFH, "Num_iex\tNum_beads\tSearch_engine\t%s" % out_head
 	for score in all_scores:
-		print >> outFH, "%i\t%i\t%s" % (i,j, score)
+		print >> outFH, "%s" % (score)
 	outFH.close()
 
 
@@ -210,11 +222,8 @@ def EPIC_cor(args):
 	for row in np.corrcoef(np.transpose(vals)):
 		print "\t".join(map("{:.2f}".format, row))
 
-
-
-
 def EPIC_eval_fs(args):
-	in_dir, refF, outF = args
+	in_dir, e_dir, scoreF, refF, outF = args
 	ref_clusters = GS.Clusters(False)
 	ref_clusters.read_file(refF)
 	outFH = open(outF, "w")
@@ -471,7 +480,7 @@ class feature_selector:
 def write_reference(args):
 	input_dir, taxid, output_dir = args
 	foundprots, elution_datas = utils.load_data(input_dir, [])
-	gs = utils.create_goldstandard(taxid, "")
+	gs = utils.create_goldstandard(taxid, foundprots)
 	out = gs.complexes.to_string()
 	outFH = open(output_dir, "w")
 	print >> outFH, out
@@ -510,7 +519,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 		if ref_complexes != "":
 			print "Loading reference from file"
 			print ref_complexes
-			all_gs = Goldstandard_from_cluster_File(ref_complexes, "")
+			all_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
 	else:
 		all_gs = globalGS
 
@@ -540,7 +549,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	print len(train.complexes.complexes)
 	print len(eval.complexes.complexes)
 
- 	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
+# 	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
 
 	print "Num valid ppis in training pos: %i" % len(train.positive)
 	print "Num valid ppis in training neg: %i" % len(train.negative)
@@ -548,18 +557,18 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	print "Num valid ppis in eval pos: %i" % len(eval.positive)
 	print "Num valid ppis in eval neg: %i" % len(eval.negative)
 
-	network = utils.make_predictions(feature_comb, "exp", clf, train, "", verbose=True)
+#	network = utils.make_predictions(feature_comb, "exp", clf, train, "", verbose=True)
 
-	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
-	print >> outFH, "\n".join(network)
-	outFH.close()
+#	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
+#	print >> outFH, "\n".join(network)
+#	outFH.close()
 
-	num_ppis = len(network)
+	num_ppis = CS.lineCount("%s.%s.pred.txt" % (output_dir, out_prefix))-1 #len(network)
 	if num_ppis != 0:
 
 		# Predicting clusters
-		utils.predict_clusters("%s.%s.pred.txt" % (output_dir, out_prefix),
-							   "%s.%s.clust.txt" % (output_dir, out_prefix))
+		#utils.predict_clusters("%s.%s.pred.txt" % (output_dir, out_prefix),
+		#					   "%s.%s.clust.txt" % (output_dir, out_prefix))
 
 		# Evaluating predicted clusters
 		pred_clusters = GS.Clusters(False)
@@ -594,6 +603,7 @@ def calc_feature_combination(args):
 	use_rf = use_rf == "True"
 	fs = fs =="True"
 
+	print this_scores
 	no_reference_overlap = False
 	head, scores = run_epic_with_feature_combinations(this_scores, input_dir, num_cores, use_rf, scoreF, output_dir,
 															  no_reference_overlap, ref_complexes=ref_complexes, fs = fs)

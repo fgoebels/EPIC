@@ -10,7 +10,7 @@ import math
 import sys
 import random as rnd
 rnd.seed(1)
-np.random.seed(1)
+#np.random.seed(1)
 
 class Goldstandard_from_Complexes():
 
@@ -93,19 +93,19 @@ class Goldstandard_from_Complexes():
 			tmp_cluster.addComplex(complex, self.complexes.complexes[complex])
 			tmp_p, _ = tmp_cluster.getPositiveAndNegativeInteractions()
 			tmp_p &= val_ppis
-			if i %2 == 0:
-				training.complexes.addComplex(complex, self.complexes.complexes[complex])
-			else:
-				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
-			i += 1
-
-#
-#			if len(t_p)<=len(h_p):
-#				t_p |= tmp_p
+#			if i %2 == 0:
 #				training.complexes.addComplex(complex, self.complexes.complexes[complex])
 #			else:
-#				h_p |= tmp_p
 #				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
+#			i += 1
+
+#
+			if len(t_p)<=len(h_p):
+				t_p |= tmp_p
+				training.complexes.addComplex(complex, self.complexes.complexes[complex])
+			else:
+				h_p |= tmp_p
+				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
 
 		training.make_pos_neg_ppis(val_ppis)
 		holdout.make_pos_neg_ppis(val_ppis)

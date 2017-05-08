@@ -107,7 +107,7 @@ def get_FA_data(anno_source, file=""):
 
 		# the supplied functional evidence data needs to have the correct header row...
 		externaldata = CS.ExternalEvidence(file)
-		externaldata.readFile()
+		#externaldata.readFile()
 		functionalData = externaldata.getScoreCalc()
 
 	else:
