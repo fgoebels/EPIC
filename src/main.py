@@ -55,11 +55,11 @@ def main():
 	outFH.close()
 
 	# Predicting clusters
-	utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode), "%s.%s.clust.txt" % (output_dir, mode))
+	utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode + anno_source), "%s.%s.clust.txt" % (output_dir, mode))
 
 	# Evaluating predicted clusters
 	pred_clusters = GS.Clusters(False)
-	pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode))
+	pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode + anno_source))
 #	utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
 	clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
 	outFH = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
