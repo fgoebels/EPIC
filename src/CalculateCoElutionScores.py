@@ -763,7 +763,7 @@ class CalculateCoElutionScores():
 	# this method combines who CalculateCoElutionScores objects onto one by comping the toMerge object into the self object
 	# @Param:
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined with self object
-	#		mode donates how to merge the sets, left (l), right (r), union (u), or  (i)
+	#		mode donates how to merge the sets, left (l), right (r), union (u), or  interaction(i)
 	def merge(self, toMerge, mode):
 		allPPIs = ""
 		if mode == "u":
@@ -1029,20 +1029,29 @@ class ExternalEvidence:
 		self.scoreCalc = CalculateCoElutionScores("", "", "", 1)
 		#self.scoreCalc.readTable(FilenameWithDic)
 		self.scores = {}
-		print "Fuu"
-		self.readFile()
 
 	# @ author: Lucas Ming Hu
 	# read external functional evidence, user can supply the external functional evidence as they want to integrate into the experimental data
 	def readFile(self):
 
 		#first, read the external functional evidence data into a dictionary
+		#with open(self.FilenameWithDic) as fp:
+		#	header = fp.readline()
+		#	header = header.rstrip()
+		#	print header
+		#	for evidence in header.split("\t")[2:]:
+		#		self.scoreCalc.header.append(evidence)
+		#	for line in fp:
+		#		names = line.rstrip().split("\t")
+		#		if names[0] == "protein1":
+		#			for evidence in names[2:]:
+		#				self.scoreCalc.header.append(evidence)
+		#		else:
+		#			edge = "\t".join(sorted([names[0], names[1]]))
+		#			self.scores[edge] = names[2:]
+		###the code above always give errors, I changed back...
+
 		with open(self.FilenameWithDic) as fp:
-			header = fp.readline()
-			header = header.rstrip()
-			print header
-			for evidence in header.split("\t")[2:]:
-				self.scoreCalc.header.append(evidence)
 			for line in fp:
 				names = line.rstrip().split("\t")
 				if names[0] == "protein1":

@@ -91,7 +91,7 @@ def predictInteractions(scoreCalc, clf, gs, verbose= False):
 	out.extend(getPredictions(tmpscores[0:k,:], edges[0:k], clf))
 	return out
 
-def get_FA_data(anno_source, file=""):
+def get_FA_data(anno_source, file="/Users/lucasminghu/Desktop/WormMap/WormNet/WormNet_20170315_removing_physicalPPIs.txt"):
 	functionalData = ""
 	if anno_source == "GM":
 
@@ -107,7 +107,7 @@ def get_FA_data(anno_source, file=""):
 
 		# the supplied functional evidence data needs to have the correct header row...
 		externaldata = CS.ExternalEvidence(file)
-		#externaldata.readFile()
+		externaldata.readFile()
 		functionalData = externaldata.getScoreCalc()
 
 	else:
