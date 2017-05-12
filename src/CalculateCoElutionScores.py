@@ -1119,7 +1119,7 @@ class STRING:
 
 	# @auothor Lucas Ming Hu
 	# the load_string function can help to download functional evidence data from STRING website automatically.
-	# we exclude evidences from "exp", "database" and "cmobined"
+	# we exclude evidences from "exp", "database" and "combined"
 	# the evidences left are: "neighbour", "fusion", "co-occurence", "co-expression" and "textmining"
 	def load_string(self):
 

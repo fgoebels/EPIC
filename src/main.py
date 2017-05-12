@@ -50,12 +50,12 @@ def main():
 
 	# Predict protein interaction
 	network =  utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
-	outFH = open("%s.%s.pred.txt" % (output_dir, mode), "w")
+	outFH = open("%s.%s.pred.txt" % (output_dir, anno_source), "w")
 	print >> outFH, "\n".join(network)
 	outFH.close()
 
 	# Predicting clusters
-	utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode + anno_source), "%s.%s.clust.txt" % (output_dir, mode))
+	utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode + anno_source), "%s.%s.clust.txt" % (output_dir, mode + anno_source))
 
 	# Evaluating predicted clusters
 	pred_clusters = GS.Clusters(False)
