@@ -50,7 +50,7 @@ def main():
 
 	# Predict protein interaction
 	network =  utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
-	outFH = open("%s.%s.pred.txt" % (output_dir, anno_source), "w")
+	outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
 	print >> outFH, "\n".join(network)
 	outFH.close()
 
