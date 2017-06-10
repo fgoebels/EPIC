@@ -87,17 +87,21 @@ class Goldstandard_from_Complexes():
 
 		t_p, h_p = set([]), set([])
 		# Balance data set on positive, since we have way more negateiv than positive
-		i = 1;
+		i = 0;
+		skipped_comp = []
 		for complex in tmp_clusters:
 			tmp_cluster = Clusters(False)
 			tmp_cluster.addComplex(complex, self.complexes.complexes[complex])
 			tmp_p, _ = tmp_cluster.getPositiveAndNegativeInteractions()
 			tmp_p &= val_ppis
-#			if i %2 == 0:
-#				training.complexes.addComplex(complex, self.complexes.complexes[complex])
-#			else:
-#				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
-#			i += 1
+			if len(tmp_p) == 0:
+				skipped_comp.append(complex)
+				#if i %2 == 0:
+				#	training.complexes.addComplex(complex, self.complexes.complexes[complex])
+				#else:
+				#	holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
+				#i += 1
+				continue
 
 #
 			if len(t_p)<=len(h_p):
@@ -106,6 +110,12 @@ class Goldstandard_from_Complexes():
 			else:
 				h_p |= tmp_p
 				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
+
+#		for complex in skipped_comp:
+#			if len(holdout.complexes.complexes) > len(training.complexes.complexes):
+#				training.complexes.addComplex(complex, self.complexes.complexes[complex])
+#			else:
+#				holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
 
 		training.make_pos_neg_ppis(val_ppis)
 		holdout.make_pos_neg_ppis(val_ppis)

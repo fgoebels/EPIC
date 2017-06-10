@@ -324,6 +324,10 @@ def EPIC_eval_fs_DIST(args):
 
 
 	print header[1]
+	print header[2]
+	print header[3]
+	print header[8]
+
 	sel_vals = np.where(vals[:, 1] > 100)[0]
 	sel_vals = list(sel_vals)
 
@@ -557,18 +561,18 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	print "Num valid ppis in eval pos: %i" % len(eval.positive)
 	print "Num valid ppis in eval neg: %i" % len(eval.negative)
 
-#	network = utils.make_predictions(feature_comb, "exp", clf, train, "", verbose=True)
+	network = utils.make_predictions(feature_comb, "exp", clf, train, "", verbose=True)
 
-#	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
-#	print >> outFH, "\n".join(network)
-#	outFH.close()
+	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
+	print >> outFH, "\n".join(network)
+	outFH.close()
 
 	num_ppis = CS.lineCount("%s.%s.pred.txt" % (output_dir, out_prefix))-1 #len(network)
 	if num_ppis != 0:
 
 		# Predicting clusters
-		#utils.predict_clusters("%s.%s.pred.txt" % (output_dir, out_prefix),
-		#					   "%s.%s.clust.txt" % (output_dir, out_prefix))
+		utils.predict_clusters("%s.%s.pred.txt" % (output_dir, out_prefix),
+							   "%s.%s.clust.txt" % (output_dir, out_prefix))
 
 		# Evaluating predicted clusters
 		pred_clusters = GS.Clusters(False)
