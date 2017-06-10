@@ -50,18 +50,28 @@ def main():
 
 	# Predict protein interaction
 	network =  utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
-	outFH = open("%s.%s.pred.txt" % (output_dir, mode), "w")
+	outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
 	print >> outFH, "\n".join(network)
 	outFH.close()
 
 	# Predicting clusters
-	utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode), "%s.%s.clust.txt" % (output_dir, mode))
+	utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode + anno_source), "%s.%s.clust.txt" % (output_dir, mode + anno_source))
 
 	# Evaluating predicted clusters
 	pred_clusters = GS.Clusters(False)
-	pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode))
+	pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode + anno_source))
 #	utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
-	utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
+	clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
+	outFH = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
+
+	head = clusterEvaluationScores[1]
+	cluster_scores = clusterEvaluationScores[0]
+
+	tmp_head = head.split("\t")
+	tmp_scores = cluster_scores.split("\t")
+	for i in range(len(tmp_head)):
+		outFH.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
+		outFH.write("\n")
 
 
 if __name__ == "__main__":
