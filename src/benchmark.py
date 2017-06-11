@@ -132,7 +132,7 @@ def merge_MS(args):
 	outFH.close()
 
 def exp_comb(args):
-	FS, i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, output_dir = args
+	FS, i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, fun_anno_F, output_dir = args
 
 	search_engine = input_dir.split(os.path.sep)[-2]
 	def get_eData_comb(data_dir, num_iex, num_beads):
@@ -173,29 +173,27 @@ def exp_comb(args):
 	out_head = ""
 	all_scores = []
 
-	for i in range(8):
-		for j in range(10):
-			if i==0 and j==0: continue
-			for iter in range(num_iter):
-				rnd.seed()
-				this_eprofiles = get_eData_comb(input_dir, i, j)
-				rnd.seed(1)
-				this_foundprots = set([])
-				print this_eprofiles[0]
-				for eF in this_eprofiles:
-					this_foundprots |= eDataToprots[os.path.split(eF)[-1]]
-		#		print [f.split(os.sep)[-1] for f in this_eprofiles]
-		#		this_foundprots, _ = utils.load_data(this_eprofiles, [])
-			#	head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
-			#													  no_reference_overlap, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
-				print len(this_foundprots)
-				out_head = "Num_prots"
-				all_scores.append("%i\t%i\t%s\t%i" % (i,j,search_engine, len(this_foundprots)))
-		#		print head
-		#		print scores
+	fun_anno = utils.get_FA_data("FILE", fun_anno_F)
+	for iter in range(num_iter):
+		rnd.seed()
+		this_eprofiles = get_eData_comb(input_dir, i, j)
+		rnd.seed(1)
+		this_foundprots = set([])
+		for eF in this_eprofiles:
+			this_foundprots |= eDataToprots[os.path.split(eF)[-1]]
+		print [f.split(os.sep)[-1] for f in this_eprofiles]
+		this_foundprots, _ = utils.load_data(this_eprofiles, [])
+		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
+														  no_reference_overlap, "comb", fun_anno, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
+		print len(this_foundprots)
+		out_head = head
+		all_scores.append("%i\t%i\t%s\t%i\t%s" % (i,j,search_engine, len(this_foundprots), scores))
+#		print head
+#		print scores
+
 
 	outFH = open(output_dir + ".%i_%i.all.eval.txt" % (i, j), "w")
-	print >> outFH, "Num_iex\tNum_beads\tSearch_engine\t%s" % out_head
+	print >> outFH, "Num_iex\tNum_beads\tSearch_engine\tNum_Prots\t%s" % out_head
 	for score in all_scores:
 		print >> outFH, "%s" % (score)
 	outFH.close()
@@ -444,13 +442,13 @@ class feature_selector:
 	def filter_scoreCalc(self, scoreCalc):
 		if scoreCalc.scores.shape[0] == 0: # scores are empty no filtering necessary
 			filtered_scoreCalc = copy.deepcopy(scoreCalc)
-			filtered_scoreCalc.header = np.array(filtered_scoreCalc.header)[self.to_keep_header]
+			filtered_scoreCalc.header = list(np.array(filtered_scoreCalc.header)[self.to_keep_header])
 			filtered_scoreCalc.scores = filtered_scoreCalc.scores[:, self.to_keep_score]
 			return filtered_scoreCalc
 		filtered_scoreCalc = copy.deepcopy(scoreCalc)
 		if self.valprots != "": filtered_scoreCalc = self.filter_valprots(filtered_scoreCalc)
 		print filtered_scoreCalc.scores.shape
-		filtered_scoreCalc.header = np.array(filtered_scoreCalc.header)[self.to_keep_header]
+		filtered_scoreCalc.header = list(np.array(filtered_scoreCalc.header)[self.to_keep_header])
 		filtered_scoreCalc.scores = filtered_scoreCalc.scores[:, self.to_keep_score]
 		val_rows = np.where(np.apply_along_axis( self.valid_score, 1, filtered_scoreCalc.scores)==True)[0]
 		filtered_scoreCalc.scores = filtered_scoreCalc.scores[val_rows, :]
@@ -463,12 +461,12 @@ class feature_selector:
 	def get_next(self):
 		edge, scores = self.scoreCalc.get_next()
 		if edge =="":
-			print "recieved empty edge"
+			#print "recieved empty edge"
 			return "", []
 		protA, protB = edge.split("\t")
 
 		if (protA not in self.valprots or protB not in self.valprots) and self.valprots != []:
-			print "not elution profile for edge %s\t%s" % (protA, protB)
+			#print "no elution profile for edge %s\t%s" % (protA, protB)
 			return "", []
 		return edge, self.filter_score(scores)
 
@@ -480,6 +478,9 @@ class feature_selector:
 
 	def close(self):
 		self.scoreCalc.close()
+
+	def add_fun_anno(self, fun_anno):
+		self.scoreCalc.add_fun_anno(fun_anno)
 
 def write_reference(args):
 	input_dir, taxid, output_dir = args
@@ -509,7 +510,7 @@ def bench_Bayes(args):
 
 	print "%s\n%s" % (out_head, "\n".join(out_scores))
 
-def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores, use_rf, scoreF,  output_dir, no_overlap_in_training, ref_complexes="", taxid="", fs = "", globalGS = ""):
+def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores, use_rf, scoreF,  output_dir, no_overlap_in_training, mode, fun_anno, ref_complexes="", taxid="", fs = "", globalGS = ""):
 	if ref_complexes !="" and taxid!="":
 		print "Suplly either taxid or reference complex file"
 		sys.exit()
@@ -561,7 +562,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 	print "Num valid ppis in eval pos: %i" % len(eval.positive)
 	print "Num valid ppis in eval neg: %i" % len(eval.negative)
 
-	network = utils.make_predictions(feature_comb, "exp", clf, train, "", verbose=True)
+	network = utils.make_predictions(feature_comb, mode, clf, train, fun_anno, verbose=True)
 
 	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
 	print >> outFH, "\n".join(network)
