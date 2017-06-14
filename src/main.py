@@ -6,9 +6,17 @@ import utils as utils
 import sys
 
 
+def Goldstandard_from_cluster_File(gsF, foundprots=""):
+	clusters = GS.Clusters(need_to_be_mapped=False)
+	clusters.read_file(gsF)
+	if foundprots != "": clusters.remove_proteins(foundprots)
+	gs = GS.Goldstandard_from_Complexes("All")
+	gs.complexes = clusters
+	gs.make_pos_neg_ppis()
+	return gs
 
 def main():
-	feature_combination, input_dir, use_rf, num_cores, mode, anno_source, target_taxid, output_dir = sys.argv[1:]
+	feature_combination, input_dir, use_rf, num_cores, mode, anno_source, anno_F, target_taxid, refF, output_dir = sys.argv[1:]
 
 	#Create feature combination
 	if feature_combination == "00000000": sys.exit()
@@ -29,7 +37,7 @@ def main():
 
 	# Generate reference data set
 	all_gs = utils.create_goldstandard(target_taxid, foundprots)
-
+	#all_gs = Goldstandard_from_cluster_File(refF, foundprots)
 #	print len(all_gs.positive)
 #	print len(all_gs.negative)
 
@@ -45,7 +53,7 @@ def main():
 
 	functionalData = ""
 	if mode != "exp":
-		functionalData = utils.get_FA_data(anno_source)
+		functionalData = utils.get_FA_data(anno_source, anno_F)
 
 
 	# Predict protein interaction

@@ -84,7 +84,7 @@ def merge_MS(args):
 			line = line.split("\t")
 			edge = "\t".join(line[:2])
 			this_score = np.array(map(float, line[2:]))
-			if len(list(set(np.where(this_score > cutoff)[0]))) > 0:
+			if len(list(set(np.where(this_score >= cutoff)[0]))) > 0:
 				out.ppiToIndex[edge] = i
 				out.IndexToPpi[i] = edge
 				out.scores[i, :] = this_score
@@ -408,7 +408,7 @@ class feature_selector:
 				self.to_keep_score.append(i - 2)
 
 	def valid_score(self, scores):
-		return len(list(set(np.where(scores > self.cutoff)[0])))>0
+		return len(list(set(np.where(scores >= self.cutoff)[0])))>0
 
 	def filter_score(self, scores):
 		if self.valid_score(scores[self.to_keep_score]):
@@ -651,6 +651,7 @@ def main():
 
 	elif mode == "-cut":
 		cut(sys.argv[2:])
+
 	elif mode == "-best_fs2":
 		EPIC_eval_fs(sys.argv[2:])
 

@@ -768,14 +768,15 @@ class CalculateCoElutionScores():
 		allPPIs = ""
 		if mode == "u":
 			allPPIs = set(self.ppiToIndex.keys()) | set(toMerge.ppiToIndex.keys())
-		print len(set(toMerge.ppiToIndex.keys()))
-		print len(allPPIs)
+
 		if mode == "l":
 			allPPIs = set(self.ppiToIndex.keys())
 		if mode == "r":
 			allPPIs = set(toMerge.ppiToIndex.keys())
 		if mode == "i":
 			allPPIs = set(self.ppiToIndex.keys()) & set(toMerge.ppiToIndex.keys())
+		print len(set(toMerge.ppiToIndex.keys()))
+		print len(allPPIs)
 
 		numFeature_in_merge = len(toMerge.header)-2
 
@@ -925,12 +926,18 @@ class CalculateCoElutionScores():
 			out += "\n" + line
 		return out
 
-	def readTable(self, scoreF, gs):
+	def readTable(self, scoreF, gs=""):
 		self.scoreF = scoreF
 		scoreFH = open(scoreF)
+		tokeep = set([])
 		self.header = scoreFH.readline().rstrip().split("\t")
-		tokeep = gs.positive | gs.negative
-		self.scores = np.zeros((len(tokeep), len(self.header)-2))
+		row_num = 0
+		if gs !="":
+			tokeep = gs.positive | gs.negative
+			row_num = len(tokeep)
+		else:
+			row_num = lineCount(scoreF)
+		self.scores = np.zeros((row_num, len(self.header)-2))
 		i = 0
 		self.ppiToIndex = {}
 		for line in scoreFH:
@@ -939,7 +946,7 @@ class CalculateCoElutionScores():
 			if line == "": continue
 			linesplit = line.split("\t")
 			edge = "\t".join(sorted(linesplit[0:2]))
-			if edge not in tokeep: continue
+			if gs != "" and edge not in tokeep: continue
 			edge_scores = np.nan_to_num(np.array(map(float, linesplit[2:])))
 			self.scores[i,:] = edge_scores
 			self.IndexToPpi[i] = edge

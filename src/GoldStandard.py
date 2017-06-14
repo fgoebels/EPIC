@@ -43,11 +43,8 @@ class Goldstandard_from_Complexes():
 
 		if found_prots != "":
 			self.complexes.remove_proteins(found_prots)
-			self.complexes.lb = 2
 			self.complexes.filter_complexes()
 			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
-
-
 
 		self.complexes.filter_complexes()
 		print "After size filtering %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
@@ -152,7 +149,7 @@ class Intact_clusters():
 		return self.complexes
 
 	def load_data(self, species):
-		intact_url = "ftp://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/%s.tsv" % species
+		intact_url = "ftp://ftp.ebi.ac.uk/pub/databases/intact/complex/2017-04-08/complextab/%s.tsv" % species
 		intact_url_FH = urllib2.urlopen(intact_url)
 		intact_url_FH.readline()
 		i = 0
@@ -485,6 +482,8 @@ class QuickGO():
 			linesplit = line.split("\t")
 			prot = linesplit[1]
 			go_complex = linesplit[6]
+			date = int(linesplit[12])
+			if date > 20170512: continue
 			# Adding prot to go map
 			if prot not in prot_to_go_map: prot_to_go_map[prot] = set([])
 			prot_to_go_map[prot].add(go_complex)
