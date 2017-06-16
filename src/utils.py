@@ -135,9 +135,10 @@ def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
 		networks.append(predictInteractions(fun_anno, clf, gs, verbose))
 
 	#predict using both functional annotation and exp
-	if mode == "comb"or mode == "BR":
+	if mode == "comb" or mode == "BR":
 		tmp_score_calc = copy.deepcopy(score_calc)
 		tmp_score_calc.add_fun_anno(fun_anno)
+
 		networks.append(predictInteractions(tmp_score_calc, clf, gs, verbose))
 
 	# return error when no networks is predicted

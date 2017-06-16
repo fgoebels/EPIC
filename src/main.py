@@ -36,8 +36,8 @@ def main():
 	foundprots, elution_datas = utils.load_data(input_dir, this_scores)
 
 	# Generate reference data set
-	all_gs = utils.create_goldstandard(target_taxid, foundprots)
-	#all_gs = Goldstandard_from_cluster_File(refF, foundprots)
+	#all_gs = utils.create_goldstandard(target_taxid, foundprots)
+	all_gs = Goldstandard_from_cluster_File(refF, foundprots)
 #	print len(all_gs.positive)
 #	print len(all_gs.negative)
 
@@ -45,8 +45,17 @@ def main():
 	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
 #	scoreCalc.calculate_coelutionDatas(all_gs)
 	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
-	print len(set(scoreCalc.ppiToIndex.keys()))
+	print "training ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
 	train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
+
+	print "All comp:%i" % len(all_gs.complexes.complexes)
+	print "Train comp:%i" % len(train.complexes.complexes)
+	print "Eval comp:%i" % len(eval.complexes.complexes)
+
+	print "Num valid ppis in training pos: %i" % len(train.positive)
+	print "Num valid ppis in training neg: %i" % len(train.negative)
+	print "Num valid ppis in eval pos: %i" % len(eval.positive)
+	print "Num valid ppis in eval neg: %i" % len(eval.negative)
 
 	# Evaluate classifier
 	utils.bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
@@ -55,6 +64,7 @@ def main():
 	if mode != "exp":
 		functionalData = utils.get_FA_data(anno_source, anno_F)
 
+	print functionalData.scores.shape
 
 	# Predict protein interaction
 	network =  utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
