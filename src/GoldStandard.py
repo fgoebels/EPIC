@@ -10,7 +10,7 @@ import math
 import sys
 import random as rnd
 rnd.seed(1)
-#np.random.seed(1)
+np.random.seed(1)
 
 class Goldstandard_from_Complexes():
 

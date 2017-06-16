@@ -32,6 +32,8 @@ import re
 import gzip
 import requests
 
+np.random.seed(1)
+
 
 # GLobal static objects used across the files
 # Load R packages globally in order to avoid loading each package again in each thread

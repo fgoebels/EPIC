@@ -10,42 +10,6 @@ from scipy.stats import zscore
 import glob
 import random as rnd
 
-"""
-from scipy.spatial import distance
-from scipy.stats import zscore
-import itertools
-
-class Goldstandard_from_PPIs():
-	def __init__(self, refF, ratio= -1):
-		self.goldstandard_positive = set([])
-		self.goldstandard_negative = set([])
-		allprots = set([])
-		refFH = open(refF)
-		for line in refFH:
-			line = line.rstrip()
-			(idA, idB) = line.split("\t")
-			allprots.add(idA)
-			allprots.add(idB)
-			pos_edge = "\t".join(sorted([idA, idB]))
-			self.goldstandard_positive.add(pos_edge)
-		refFH.close()
-		allprots = list(allprots)
-		if ratio == -1:
-			for i in range(len(allprots)):
-				prot_i = allprots[i]
-				for j in range(i+1, len(allprots)):
-					prot_j = allprots[j]
-					edge = "\t".join(sorted([prot_i, prot_j]))
-					if edge in self.goldstandard_positive: continue
-					self.goldstandard_negative.add(edge)
-		else:
-			while(len(self.goldstandard_negative)< len(self.goldstandard_positive)*ratio):
-				prot_i, prot_j = rnd.sample(allprots,2)
-				edge = "\t".join(sorted([prot_i, prot_j]))
-				if edge in self.goldstandard_positive: continue
-				self.goldstandard_negative.add(edge)
-"""
-
 def cut(args):
 	fc, scoreF, outF = args
 	if fc == "00000000": sys.exit()
@@ -160,12 +124,12 @@ def exp_comb(args):
 	fs = False
 
 	#global reference data set, since we don't want to compare with artifical smaller reference data set
-	foundprots, eDatas = utils.load_data(input_dir, [])
-	global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+	#foundprots, eDatas = utils.load_data(input_dir, [])
+	#global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
 
-	eDataToprots = {}
-	for eData in eDatas:
-		eDataToprots[eData.name] = set(eData.prot2Index.keys())
+	#eDataToprots = {}
+	#for eData in eDatas:
+	#	eDataToprots[eData.name] = set(eData.prot2Index.keys())
 
 	i,j, num_iter, num_cores = map(int, [i, j, num_iter, num_cores])
 	if i == 0 and j == 0: sys.exit()
@@ -179,12 +143,12 @@ def exp_comb(args):
 		this_eprofiles = get_eData_comb(input_dir, i, j)
 		rnd.seed(1)
 		this_foundprots = set([])
-		for eF in this_eprofiles:
-			this_foundprots |= eDataToprots[os.path.split(eF)[-1]]
+		#for eF in this_eprofiles:
+		#	this_foundprots |= eDataToprots[os.path.split(eF)[-1]]
 		print [f.split(os.sep)[-1] for f in this_eprofiles]
-		this_foundprots, _ = utils.load_data(this_eprofiles, [])
+		#this_foundprots, _ = utils.load_data(this_eprofiles, [])
 		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
-														  no_reference_overlap, "comb", fun_anno, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
+														  no_reference_overlap, mode="comb", fun_anno=fun_anno, ref_complexes=ref_complexes, fs=fs, globalGS="")
 		print len(this_foundprots)
 		out_head = head
 		all_scores.append("%i\t%i\t%s\t%i\t%s" % (i,j,search_engine, len(this_foundprots), scores))
@@ -400,6 +364,7 @@ class feature_selector:
 	def get_cols(self, header, feature_names):
 		self.to_keep_header = [0, 1]
 		self.to_keep_score = []
+
 		for i in range(2, len(header)):
 			colname = header[i]
 			scorename = colname.split(".")[-1]
@@ -416,47 +381,22 @@ class feature_selector:
 		else:
 			return []
 
-	def update_ppi_map(self, scoreCalc, val_indices):
-		prot_indices = [None] * len(scoreCalc.ppiToIndex.keys())
-		for p, i in scoreCalc.ppiToIndex.items(): prot_indices[i] = p
-		prot_indices = np.array(prot_indices)[val_indices]
-		scoreCalc.ppiToIndex = {}
-		scoreCalc.IndexToPpi = {}
-		for i, p in enumerate(prot_indices):
-			scoreCalc.ppiToIndex[p] = i
-			scoreCalc.IndexToPpi[i] = p
-
-	def filter_valprots(self, scoreCalc):
-		filtered_scoreCalc = copy.deepcopy(scoreCalc)
-		to_keep_rows = []
-		for p, i in scoreCalc.ppiToIndex.items():
-			pA, pB = p.split("\t")
-			if pA in self.valprots and pB in self.valprots:
-				to_keep_rows.append(i)
-		to_keep_rows = np.array(to_keep_rows)
-		print "Num val ppis: %i" % len(to_keep_rows)
-		filtered_scoreCalc.scores = filtered_scoreCalc.scores[to_keep_rows, :]
-		self.update_ppi_map(filtered_scoreCalc, to_keep_rows)
-		return filtered_scoreCalc
-
 	def filter_scoreCalc(self, scoreCalc):
-		if scoreCalc.scores.shape[0] == 0: # scores are empty no filtering necessary
-			filtered_scoreCalc = copy.deepcopy(scoreCalc)
-			filtered_scoreCalc.header = list(np.array(filtered_scoreCalc.header)[self.to_keep_header])
-			filtered_scoreCalc.scores = filtered_scoreCalc.scores[:, self.to_keep_score]
-			return filtered_scoreCalc
-		filtered_scoreCalc = copy.deepcopy(scoreCalc)
-		if self.valprots != "": filtered_scoreCalc = self.filter_valprots(filtered_scoreCalc)
-		print filtered_scoreCalc.scores.shape
-		filtered_scoreCalc.header = list(np.array(filtered_scoreCalc.header)[self.to_keep_header])
-		filtered_scoreCalc.scores = filtered_scoreCalc.scores[:, self.to_keep_score]
-		val_rows = np.where(np.apply_along_axis( self.valid_score, 1, filtered_scoreCalc.scores)==True)[0]
-		filtered_scoreCalc.scores = filtered_scoreCalc.scores[val_rows, :]
-		self.update_ppi_map(filtered_scoreCalc, val_rows)
-		print filtered_scoreCalc.scores.shape
-		return filtered_scoreCalc
-
- 		return filtered_scoreCalc
+		filtered_sc = CS.CalculateCoElutionScores("", "", "", 1)
+		filtered_sc.scoreF = scoreCalc.scoreF
+		filtered_sc.header = list(np.array(scoreCalc.header)[self.to_keep_header])
+		filtered_sc.scores = np.zeros((len(scoreCalc.ppiToIndex.keys()),len(self.to_keep_score)))
+		ppi_index = 0
+		for i in range(scoreCalc.scores.shape[0]):
+			ppi = scoreCalc.IndexToPpi[i]
+			ppi_scores = self.filter_score(scoreCalc.scores[i, :])
+			if ppi_scores ==[]: continue
+			filtered_sc.ppiToIndex[ppi] = ppi_index
+			filtered_sc.IndexToPpi[ppi_index] = ppi
+			filtered_sc.scores[ppi_index, :] = ppi_scores
+			ppi_index += 1
+		filtered_sc.scores = filtered_sc.scores[0:ppi_index, :]
+		return filtered_sc
 
 	def get_next(self):
 		edge, scores = self.scoreCalc.get_next()
@@ -468,7 +408,14 @@ class feature_selector:
 		if (protA not in self.valprots or protB not in self.valprots) and self.valprots != []:
 			#print "no elution profile for edge %s\t%s" % (protA, protB)
 			return "", []
-		return edge, self.filter_score(scores)
+		out_scores =  self.filter_score(scores)
+		if self.scoreCalc.fun_anno != "" and out_scores !=[]:
+			to_add = [0] * (len(self.scoreCalc.fun_anno.header) - 2)
+			if self.scoreCalc.fun_anno.has_edge(edge):
+				to_add = self.scoreCalc.fun_anno.get_score(edge)
+			out_scores = np.append(out_scores, to_add)
+
+		return edge, out_scores
 
 	def toSklearnData(self, gs):
 		return self.scoreCalc.toSklearnData(gs)
@@ -516,7 +463,7 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 		sys.exit()
 	all_gs = ""
 
-	clf = CS.CLF_Wrapper(num_cores, use_rf, useFeatureSelection=fs)
+	clf = CS.CLF_Wrapper(num_cores, use_rf)
 
 	foundprots, elution_datas = utils.load_data(input_dir, [])
 	if globalGS == "":
@@ -535,33 +482,34 @@ def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores
 											num_cores=num_cores, cutoff=0.5)
 	scoreCalc.readTable(scoreF, all_gs)
 
+	#feature_comb = scoreCalc
 	print scoreCalc.scores.shape
 	print "Num valid filterd ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
 	print "Num valid all pos: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(all_gs.positive))
 	print "Num valid all negative: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(all_gs.negative))
-	all_gs.make_pos_neg_ppis(val_ppis=set(scoreCalc.ppiToIndex.keys()))
+	#all_gs.make_pos_neg_ppis(val_ppis=set(scoreCalc.ppiToIndex.keys()))
 	feature_comb = feature_selector([fs.name for fs in feature_combination], scoreCalc, foundprots)
 	print feature_comb.scoreCalc.scores.shape
+	print scoreCalc.scores.shape
 
-	print "Num valid filterd ppis: %i" % len(set(feature_comb.scoreCalc.ppiToIndex.keys()))
-	print "Num valid filtered pos: %i" % len(set(feature_comb.scoreCalc.ppiToIndex.keys()) & set(all_gs.positive))
-	print "Num valid filtered negative: %i" % len(set(feature_comb.scoreCalc.ppiToIndex.keys()) & set(all_gs.negative))
+	print scoreCalc.scores == feature_comb.scoreCalc.scores
 
 	out_prefix = "_".join([fs.name for fs in feature_combination])
-	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()), no_overlapp=no_overlap_in_training)
+	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()))
+	#train, eval = all_gs.split_into_holdout_training(set(feature_comb.ppiToIndex.keys()))
 
 	print len(all_gs.complexes.complexes)
 	print len(train.complexes.complexes)
 	print len(eval.complexes.complexes)
 
-# 	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
-
+	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
 	print "Num valid ppis in training pos: %i" % len(train.positive)
 	print "Num valid ppis in training neg: %i" % len(train.negative)
 
 	print "Num valid ppis in eval pos: %i" % len(eval.positive)
 	print "Num valid ppis in eval neg: %i" % len(eval.negative)
 
+	print fun_anno.scores.shape
 	network = utils.make_predictions(feature_comb, mode, clf, train, fun_anno, verbose=True)
 
 	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
@@ -610,6 +558,7 @@ def calc_feature_combination(args):
 
 	print this_scores
 	no_reference_overlap = False
+
 	head, scores = run_epic_with_feature_combinations(this_scores, input_dir, num_cores, use_rf, scoreF, output_dir,
 															  no_reference_overlap, ref_complexes=ref_complexes, fs = fs)
 	outFH = open(output_dir + ".eval.wo.txt", "w")
