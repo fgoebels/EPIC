@@ -36,8 +36,11 @@ def main():
 	foundprots, elution_datas = utils.load_data(input_dir, this_scores)
 
 	# Generate reference data set
-	all_gs = utils.create_goldstandard(target_taxid, foundprots)
-	#all_gs = Goldstandard_from_cluster_File(refF, foundprots)
+
+	if refF == "":
+		all_gs = utils.create_goldstandard(target_taxid, foundprots)
+	else:
+		all_gs = Goldstandard_from_cluster_File(refF, foundprots)
 #	print len(all_gs.positive)
 #	print len(all_gs.negative)
 
