@@ -124,8 +124,8 @@ def exp_comb(args):
 	fs = False
 
 	#global reference data set, since we don't want to compare with artifical smaller reference data set
-	#foundprots, eDatas = utils.load_data(input_dir, [])
-	#global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+	foundprots, eDatas = utils.load_data(input_dir, [])
+	global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
 
 	#eDataToprots = {}
 	#for eData in eDatas:
@@ -148,7 +148,7 @@ def exp_comb(args):
 		print [f.split(os.sep)[-1] for f in this_eprofiles]
 		#this_foundprots, _ = utils.load_data(this_eprofiles, [])
 		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
-														  no_reference_overlap, mode="comb", fun_anno=fun_anno, ref_complexes=ref_complexes, fs=fs, globalGS="")
+														  no_reference_overlap, mode="comb", fun_anno=fun_anno, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
 		print len(this_foundprots)
 		out_head = head
 		all_scores.append("%i\t%i\t%s\t%i\t%s" % (i,j,search_engine, len(this_foundprots), scores))

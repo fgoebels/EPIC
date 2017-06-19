@@ -43,7 +43,6 @@ class Goldstandard_from_Complexes():
 
 		if found_prots != "":
 			self.complexes.remove_proteins(found_prots)
-			self.complexes.filter_complexes()
 			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
 
 		self.complexes.filter_complexes()
@@ -69,6 +68,18 @@ class Goldstandard_from_Complexes():
 
 	def get_edges(self):
 		return self.positive | self.negative
+
+	"""
+		to do @ LUCAS
+		n fold split
+		array of size n
+		all_complexes = rnd.shuffel(all_complexes)
+		fold_size = len(all_complexes)/n
+		for fold range(n):
+			split up data
+			all_complexes[foldsize*n:foldsize*(n+1)]
+		return folds
+	"""
 
 	def split_into_holdout_training(self, val_ppis, no_overlapp=False):
 		holdout = Goldstandard_from_Complexes("Holdout")
@@ -317,11 +328,29 @@ class Clusters():
 				todel.add(comp)
 		for delComp in todel:
 			del self.complexes[delComp]
+	"""
+	#alt version for remove_proteins where complete complex gets removed when not all members have elution data
+	def remove_proteins(self, to_keep):
+		todel = set([])
+		for comp in self.complexes:
+			if len(self.complexes[comp] & to_keep)/len(self.complexes[comp])<1:
+				todel.add(comp)
+		for comp in todel:
+			del self.complexes[comp]
+		#	self.complexes[comp] = self.complexes[comp] & to_keep
+	"""
 
 	def remove_proteins(self, to_keep):
+		todel = set([])
 		for comp in self.complexes:
-			self.complexes[comp] = self.complexes[comp] & to_keep
-		self.filter_complexes()
+			new_prots = self.complexes[comp] & to_keep
+			if len(new_prots)==0:
+				todel.add(comp)
+			else:
+				self.complexes[comp] = new_prots
+
+		for comp in todel:
+			del self.complexes[comp]
 
 	def getProtToComplexMap(self):
 		out = {}

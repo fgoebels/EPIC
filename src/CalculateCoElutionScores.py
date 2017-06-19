@@ -110,7 +110,7 @@ class ElutionData():
 	# this methods load elution data stored as a flat file and returns the read in matrix and an index pointing each protein to it's rwo index
 	# @Param:
 	#		elutionProfileF elution data as flat file, tab separated
-	def loadElutionData(self, elutionProfileF):
+	def loadElutionData(self, elutionProfileF, frac_count = 2):
 		elutionProfileFH = open(elutionProfileF)
 		elutionProfileFH.readline()
 		i = 0
@@ -122,13 +122,13 @@ class ElutionData():
 			line = line.split("\t")
 			protID = line[0]
 			counts = map(float, line[1:])
-			if len(list(set(np.where(np.array(counts) > 0.0)[0]))) > 1:
+			if len(list(set(np.where(np.array(counts) > 0.0)[0]))) >= frac_count:
 				elutionMat.append(counts)
 				prot2Index[protID] = i
 				i += 1
 			else:
 				removed += 1
-		print "finished processing %s\n removed %i (%.2f) proteins with counts in only one fraction" % (elutionProfileF, removed, removed/(removed + len(prot2Index)))
+		print "finished processing %s\n removed %i (%.2f, total: %i, after filtering: %i) proteins found in less than %i fraction" % (elutionProfileF, removed, removed/(removed + len(prot2Index)), removed + len(prot2Index), len(prot2Index), frac_count)
 		elutionProfileFH.close()
 		elutionMat = np.nan_to_num(np.matrix(elutionMat))
 		return elutionMat, prot2Index
@@ -1036,9 +1036,10 @@ class ExternalEvidence:
 	def __init__(self, FilenameWithDic):
 		self.FilenameWithDic = FilenameWithDic
 		self.scoreCalc = CalculateCoElutionScores("", "", "", 1)
-		#self.scoreCalc.readTable(FilenameWithDic)
+		self.scoreCalc.readTable(FilenameWithDic) # added by flo using  CalculateCoElutionScores funtion for reading in functional scores
 		self.scores = {}
 
+	"""
 	# @ author: Lucas Ming Hu
 	# read external functional evidence, user can supply the external functional evidence as they want to integrate into the experimental data
 	def readFile(self):
@@ -1063,7 +1064,7 @@ class ExternalEvidence:
 		with open(self.FilenameWithDic) as fp:
 			for line in fp:
 				names = line.rstrip().split("\t")
-				if names[0] == "protein1":
+				if names[0] == "protein1" or names[0] == "ProtA":
 					for evidence in names[2:]:
 						self.scoreCalc.header.append(evidence)
 				else:
@@ -1079,6 +1080,7 @@ class ExternalEvidence:
 			self.scoreCalc.IndexToPpi[i] = edge
 			self.scoreCalc.scores[i, :] = self.scores[edge]
 			i += 1
+	"""
 
 	def getScoreCalc(self):
 		return self.scoreCalc
