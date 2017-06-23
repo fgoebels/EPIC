@@ -18,6 +18,7 @@ def Goldstandard_from_cluster_File(gsF, foundprots=""):
 # a function added by lucas, to use n_fold cross_validation to help select features.
 # a trial version though.
 def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F):
+	outFH_evaluation = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
 
 	for index in range(n_fold):
 		train, eval = (all_gs.split_into_n_fold(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])[index]
@@ -56,7 +57,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		#utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
 		clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
 
-		outFH = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
+		#outFH = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
 
 		head = clusterEvaluationScores[1]
 		cluster_scores = clusterEvaluationScores[0]
@@ -68,8 +69,10 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		tmp_head = head.split("\t")
 		tmp_scores = cluster_scores.split("\t")
 		for i in range(len(tmp_head)):
-			outFH.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
-			outFH.write("\n")
+			outFH_evaluation.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
+			outFH_evaluation.write("\n")
+
+	outFH_evaluation.close()
 
 
 
