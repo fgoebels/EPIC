@@ -102,14 +102,12 @@ def main():
 		all_gs = Goldstandard_from_cluster_File(refF, foundprots)
 	all_gs = utils.create_goldstandard(target_taxid, foundprots)
 	#all_gs = Goldstandard_from_cluster_File(refF, foundprots)
-	sys.exit()
-#	print len(all_gs.positive)
-#	print len(all_gs.negative)
+#	sys.exit()
 
 
 	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
-	scoreCalc.calculate_coelutionDatas(all_gs)
-#	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+	#scoreCalc.calculate_coelutionDatas(all_gs)
+	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print "training ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
 	#train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 	#train, eval = all_gs.split_into_n_fold(10, set(scoreCalc.ppiToIndex.keys()))
