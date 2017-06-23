@@ -109,9 +109,12 @@ def main():
 	#scoreCalc.calculate_coelutionDatas(all_gs)
 	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print "training ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
-	#train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
-	#train, eval = all_gs.split_into_n_fold(10, set(scoreCalc.ppiToIndex.keys()))
+
+	#n_fold cross validation to select the best features.
 	n_fold_cross_validation(10, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F)
+
+	# actually predict the network using all data
+	#train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 
 
 	print "All comp:%i" % len(all_gs.complexes.complexes)
