@@ -56,10 +56,18 @@ class Goldstandard_from_Complexes():
 		self.make_pos_neg_ppis()
 
 	def make_pos_neg_ppis(self, val_ppis=""):
-		self.positive, self.negative = self.complexes.getPositiveAndNegativeInteractions()
+		self.positive, self.negative = self.complexes.getPositiveAndNegativeInteractions() #this is not right, PPI in complexes in hold_out might be considered as negative in trianing...
 		if val_ppis!="":
 			self.positive &= val_ppis
 			self.negative &= val_ppis
+
+	# a function added by Lucas to add PPIs into the self.positive and self.negative, inseatd of using the functions above
+	# positive is also set object
+	def add_positive(self, positives):
+		self.positive = self.positive | positives
+
+	def add_negative(self, negatives):
+		self.negative = self.negative | negatives
 
 	def get_complexes(self):
 		return self.complexes
@@ -70,12 +78,87 @@ class Goldstandard_from_Complexes():
 	def get_edges(self):
 		return self.positive | self.negative
 
-	def split_into_holdout_training(self, val_ppis, no_overlapp=False):
+	#new function added by Lucas to split into n-fold for n-fold cross-validation.
+	#just a trial version to test if it works.
+	def split_into_n_fold(self, n_fold, val_ppis, no_overlapp=False):  # what is vak_ppis
+
+		# generate the negative PPIs set.
+
+		val_negatives = list(self.negative & val_ppis)
+		rnd.shuffle(val_negatives)
+
+		tmp_clusters = self.complexes.complexes.keys()
+		allPossiblePositive, allPossibleNegative = self.complexes.getPositiveAndNegativeInteractions()
+
+		#get the neagtive PPIs which detected in co-fractionation experiments (the overlap of two sets)
+		negativePPIs = val_ppis & allPossibleNegative
+
+		trainingNegatives = set(list(negativePPIs)[:int(len(negativePPIs) / 2)])
+		evaluationNegatives = set(list(negativePPIs)[int(len(negativePPIs) / 2):])
+
+		rnd.shuffle(tmp_clusters)
+
+		foldNumberComplex = int(len(tmp_clusters)/n_fold)
+
+		training_evaluation_dictionary = {'turpleKey': []}
+
+		# n_fold cross_validation, split the whole protein complexes set into n_fold, one is for training, and the rest is for validation.
+		for i in range(n_fold):
+
+			#create training and evaluating complexes objects.
+			evaluation = Goldstandard_from_Complexes("Evaluation")
+			training = Goldstandard_from_Complexes("Training")
+
+			evaluatingComplexSet = tmp_clusters[foldNumberComplex * i : foldNumberComplex * (i + 1)]
+			trainingComplexSet = [element for j, element in enumerate(tmp_clusters) if j not in evaluatingComplexSet] #the training part
+
+			#set the positive PPIs
+			positiveTraningPPIs, positiveEvaluatingPPIs = set([]), set([])
+
+			#generate the positive PPIs in training complex set.
+			for index in trainingComplexSet:
+
+				tmp_complexes = Clusters(False)
+				tmp_complexes.addComplex(index, self.complexes.complexes[index])
+				tmp_p, _ = tmp_complexes.getPositiveAndNegativeInteractions()
+				tmp_p = tmp_p & val_ppis
+				positiveTraningPPIs = tmp_p | positiveTraningPPIs
+				training.complexes.addComplex(index, self.complexes.complexes[index])
+				training.add_positive(tmp_p)
+
+				training.add_negative(trainingNegatives)
+
+
+			#generate the positive PPIs in evaluating complex set.
+			for index in evaluatingComplexSet:
+
+				tmp_complexes = Clusters(False)
+				tmp_complexes.addComplex(index, self.complexes.complexes[index])
+				tmp_p, _ = tmp_complexes.getPositiveAndNegativeInteractions()
+				tmp_p = tmp_p & val_ppis
+				positiveEvaluatingPPIs = tmp_p | positiveEvaluatingPPIs
+				evaluation.complexes.addComplex(index, self.complexes.complexes[index])
+				evaluation.add_positive(tmp_p)
+				evaluation.add_negative(evaluationNegatives)
+
+			training.rebalance()
+			evaluation.rebalance()
+
+			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
+
+		return training_evaluation_dictionary
+
+
+	def split_into_holdout_training(self, val_ppis, no_overlapp=False): #what is vak_ppis
 		holdout = Goldstandard_from_Complexes("Holdout")
 		training = Goldstandard_from_Complexes("Training")
 
 		tmp_clusters = self.complexes.complexes.keys()
+
 		rnd.shuffle(tmp_clusters)
+
+		print "debug here"
+		print tmp_clusters
 
 		val_negatives = list(self.negative & val_ppis)
 		rnd.shuffle(val_negatives)
@@ -83,15 +166,15 @@ class Goldstandard_from_Complexes():
 		h_n = set(val_negatives[int(len(val_negatives)/2):])
 
 		t_p, h_p = set([]), set([])
-		# Balance data set on positive, since we have way more negateiv than positive
+		# Balance data set on positive, since we have way more negative than positive
 		i = 0;
 		skipped_comp = []
 		for complex in tmp_clusters:
 			tmp_cluster = Clusters(False)
 			tmp_cluster.addComplex(complex, self.complexes.complexes[complex])
 			tmp_p, _ = tmp_cluster.getPositiveAndNegativeInteractions()
-			tmp_p &= val_ppis
-			if len(tmp_p) == 0:
+			tmp_p &= val_ppis #tmp_p = tmp_p & val_ppis
+			if len(tmp_p) == 0: #should keep all the complexes
 				skipped_comp.append(complex)
 				#if i %2 == 0:
 				#	training.complexes.addComplex(complex, self.complexes.complexes[complex])
@@ -99,6 +182,8 @@ class Goldstandard_from_Complexes():
 				#	holdout.complexes.addComplex(complex, self.complexes.complexes[complex])
 				#i += 1
 				continue
+
+			print tmp_p
 
 #
 			if len(t_p)<=len(h_p):
@@ -120,7 +205,8 @@ class Goldstandard_from_Complexes():
 		training.negative = t_n
 		holdout.negative = h_n
 
-		if no_overlapp: training.positive -= holdout.get_edges()
+		if no_overlapp:
+			training.positive -= holdout.get_edges()
 
 		training.rebalance()
 		holdout.rebalance()
@@ -225,7 +311,8 @@ class Clusters():
 		return self
 
 	def addComplex(self, complex, members):
-		if complex not in self.complexes: self.complexes[complex] = set([])
+		if complex not in self.complexes:
+			self.complexes[complex] = set([])
 		self.complexes[complex] = self.complexes[complex] | members
 
 	def read_file(self, clusterF):
