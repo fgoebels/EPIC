@@ -82,9 +82,8 @@ class Goldstandard_from_Complexes():
 	def split_into_n_fold(self, n_fold, val_ppis, no_overlapp=False):  # what is vak_ppis
 
 		# generate the negative PPIs set.
-
-		val_negatives = list(self.negative & val_ppis)
-		rnd.shuffle(val_negatives)
+		#val_negatives = list(self.negative & val_ppis)
+		#rnd.shuffle(val_negatives)
 
 		tmp_clusters = self.complexes.complexes.keys()
 		allPossiblePositive, allPossibleNegative = self.complexes.getPositiveAndNegativeInteractions()
@@ -109,7 +108,7 @@ class Goldstandard_from_Complexes():
 			training = Goldstandard_from_Complexes("Training")
 
 			evaluatingComplexSet = tmp_clusters[foldNumberComplex * i : foldNumberComplex * (i + 1)]
-			trainingComplexSet = [element for j, element in enumerate(tmp_clusters) if j not in evaluatingComplexSet] #the training part
+			trainingComplexSet = list(set(tmp_clusters) - set(evaluatingComplexSet))
 
 			#set the positive PPIs
 			positiveTraningPPIs, positiveEvaluatingPPIs = set([]), set([])
