@@ -21,7 +21,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 	outFH_evaluation = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
 
 	for index in range(n_fold):
-		train, eval = (all_gs.split_into_n_fold(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])[index]
+		train, eval = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])[index]
 
 		print "All comp:%i" % len(all_gs.complexes.complexes)
 		print "Train comp:%i" % len(train.complexes.complexes)
@@ -67,6 +67,8 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		for i in range(len(tmp_head)):
 			outFH_evaluation.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
 			outFH_evaluation.write("\n")
+
+		print "procesinng fold " + str(i)
 
 	outFH_evaluation.close()
 

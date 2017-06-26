@@ -182,41 +182,41 @@ class Goldstandard_from_Complexes():
 			positiveTraningPPIs, positiveEvaluatingPPIs = set([]), set([])
 
 			#generate the positive PPIs in training complex set.
+			tmp_training_complexes = Clusters(False)
 			for index in trainingComplexSet:
 
-				tmp_complexes = Clusters(False)
-				tmp_complexes.addComplex(index, self.complexes.complexes[index])
-				tmp_p, tmp_n = tmp_complexes.getPositiveAndNegativeInteractions()
-				tmp_p = tmp_p & val_ppis
-				tmp_n = tmp_n & val_ppis
-				positiveTraningPPIs = tmp_p | positiveTraningPPIs
+				tmp_training_complexes.addComplex(index, self.complexes.complexes[index])
 				training.complexes.addComplex(index, self.complexes.complexes[index])
-				training.add_positive(tmp_p)
 
-				training.add_negative(tmp_n)
-
-
-
+			tmp_p, tmp_n = tmp_training_complexes.getPositiveAndNegativeInteractions()
+			tmp_p = tmp_p & val_ppis
+			tmp_n = tmp_n & val_ppis
+			training.add_positive(tmp_p)
+			training.add_negative(tmp_n)
 
 			#generate the positive PPIs in evaluating complex set.
+			tmp_evaluation_complexes = Clusters(False)
 			for index in evaluatingComplexSet:
 
-				tmp_complexes = Clusters(False)
-				tmp_complexes.addComplex(index, self.complexes.complexes[index])
-				tmp_p, _ = tmp_complexes.getPositiveAndNegativeInteractions()
-				tmp_p = tmp_p & val_ppis
-				positiveEvaluatingPPIs = tmp_p | positiveEvaluatingPPIs
+				tmp_evaluation_complexes.addComplex(index, self.complexes.complexes[index])
 				evaluation.complexes.addComplex(index, self.complexes.complexes[index])
-				evaluation.add_positive(tmp_p)
-				evaluation.add_negative(evaluationNegatives)
+
+
+			tmp_p2, tmp_n2 = tmp_evaluation_complexes.getPositiveAndNegativeInteractions()
+			tmp_p2 = tmp_p2 & val_ppis
+			tmp_n2 = tmp_n2 & val_ppis
+			evaluation.add_positive(tmp_p2)
+			evaluation.add_negative(tmp_n2)
+
+			print "i am debugging now"
+			print evaluation.get_negative()
+			print evaluation.get_positive()
 
 			training.rebalance()
 			evaluation.rebalance()
 
 			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
 
-		print "i am debugging here"
-		print len(training.get_negative())
 
 		return training_evaluation_dictionary
 
