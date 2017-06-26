@@ -112,9 +112,6 @@ class Goldstandard_from_Complexes():
 			evaluatingComplexSet = tmp_clusters[foldNumberComplex * i : foldNumberComplex * (i + 1)]
 			trainingComplexSet = list(set(tmp_clusters) - set(evaluatingComplexSet))
 
-			#set the positive PPIs
-			positiveTraningPPIs, positiveEvaluatingPPIs = set([]), set([])
-
 			#generate the positive PPIs in training complex set.
 			for index in trainingComplexSet:
 
@@ -122,10 +119,8 @@ class Goldstandard_from_Complexes():
 				tmp_complexes.addComplex(index, self.complexes.complexes[index])
 				tmp_p, _ = tmp_complexes.getPositiveAndNegativeInteractions()
 				tmp_p = tmp_p & val_ppis
-				positiveTraningPPIs = tmp_p | positiveTraningPPIs
 				training.complexes.addComplex(index, self.complexes.complexes[index])
 				training.add_positive(tmp_p)
-
 				training.add_negative(trainingNegatives)
 
 
@@ -136,7 +131,6 @@ class Goldstandard_from_Complexes():
 				tmp_complexes.addComplex(index, self.complexes.complexes[index])
 				tmp_p, _ = tmp_complexes.getPositiveAndNegativeInteractions()
 				tmp_p = tmp_p & val_ppis
-				positiveEvaluatingPPIs = tmp_p | positiveEvaluatingPPIs
 				evaluation.complexes.addComplex(index, self.complexes.complexes[index])
 				evaluation.add_positive(tmp_p)
 				evaluation.add_negative(evaluationNegatives)
@@ -209,8 +203,8 @@ class Goldstandard_from_Complexes():
 			evaluation.add_negative(tmp_n2)
 
 			print "i am debugging now"
-			print evaluation.get_negative()
-			print evaluation.get_positive()
+			print len(evaluation.get_negative())
+			print len(evaluation.get_positive())
 
 			training.rebalance()
 			evaluation.rebalance()
