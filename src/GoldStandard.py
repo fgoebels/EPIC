@@ -188,14 +188,14 @@ class Goldstandard_from_Complexes():
 				tmp_complexes.addComplex(index, self.complexes.complexes[index])
 				tmp_p, tmp_n = tmp_complexes.getPositiveAndNegativeInteractions()
 				tmp_p = tmp_p & val_ppis
+				tmp_n = tmp_n & val_ppis
 				positiveTraningPPIs = tmp_p | positiveTraningPPIs
 				training.complexes.addComplex(index, self.complexes.complexes[index])
 				training.add_positive(tmp_p)
 
 				training.add_negative(tmp_n)
 
-				print "i am debugging here"
-				print len(training.get_negative())
+
 
 
 			#generate the positive PPIs in evaluating complex set.
@@ -214,6 +214,9 @@ class Goldstandard_from_Complexes():
 			evaluation.rebalance()
 
 			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
+
+		print "i am debugging here"
+		print len(training.get_negative())
 
 		return training_evaluation_dictionary
 
