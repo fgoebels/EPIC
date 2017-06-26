@@ -62,10 +62,6 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		head = clusterEvaluationScores[1]
 		cluster_scores = clusterEvaluationScores[0]
 
-		print "debug here"
-		print head
-		print cluster_scores
-
 		tmp_head = head.split("\t")
 		tmp_scores = cluster_scores.split("\t")
 		for i in range(len(tmp_head)):

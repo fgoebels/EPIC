@@ -60,7 +60,7 @@ class Goldstandard_from_Complexes():
 			self.positive &= val_ppis
 			self.negative &= val_ppis
 
-	# a function added by Lucas to add PPIs into the self.positive and self.negative, inseatd of using the functions above
+	# a function added by Lucas HU to add PPIs into the self.positive and self.negative, inseatd of using the functions above
 	# positive is also set object
 	def add_positive(self, positives):
 		self.positive = self.positive | positives
@@ -74,16 +74,18 @@ class Goldstandard_from_Complexes():
 	def get_goldstandard(self):
 		return self.positive, self.negative
 
+	def get_positive(self):
+		return self.positive
+
+	def get_negative(self):
+		return self.negative
+
 	def get_edges(self):
 		return self.positive | self.negative
 
-	#new function added by Lucas to split into n-fold for n-fold cross-validation.
+	#new function added by Lucas HU to split into n-fold for n-fold cross-validation.
 	#just a trial version to test if it works.
 	def split_into_n_fold(self, n_fold, val_ppis, no_overlapp=False):  # what is vak_ppis
-
-		# generate the negative PPIs set.
-		#val_negatives = list(self.negative & val_ppis)
-		#rnd.shuffle(val_negatives)
 
 		tmp_clusters = self.complexes.complexes.keys()
 		allPossiblePositive, allPossibleNegative = self.complexes.getPositiveAndNegativeInteractions()
@@ -146,6 +148,74 @@ class Goldstandard_from_Complexes():
 
 		return training_evaluation_dictionary
 
+	#new function added by Lucas HU to split into n-fold for n-fold cross-validation.
+	#In this case, negative PPIs are only generated with each fold of data, so negative PPIs might be positive PPIs in other fold of data
+	# a trial version can be used for comparsion (suggested by Florian)
+	def split_into_n_fold2(self, n_fold, val_ppis, no_overlapp=False):  # what is vak_ppis
+
+		tmp_clusters = self.complexes.complexes.keys()
+		allPossiblePositive, allPossibleNegative = self.complexes.getPositiveAndNegativeInteractions()
+
+		#get the neagtive PPIs which detected in co-fractionation experiments (the overlap of two sets)
+		negativePPIs = val_ppis & allPossibleNegative
+
+		trainingNegatives = set(list(negativePPIs)[:int(len(negativePPIs) / 2)])
+		evaluationNegatives = set(list(negativePPIs)[int(len(negativePPIs) / 2):])
+
+		rnd.shuffle(tmp_clusters)
+
+		foldNumberComplex = int(len(tmp_clusters)/n_fold)
+
+		training_evaluation_dictionary = {'turpleKey': []}
+
+		# n_fold cross_validation, split the whole protein complexes set into n_fold, one is for training, and the rest is for validation.
+		for i in range(n_fold):
+
+			#create training and evaluating complexes objects.
+			evaluation = Goldstandard_from_Complexes("Evaluation")
+			training = Goldstandard_from_Complexes("Training")
+
+			evaluatingComplexSet = tmp_clusters[foldNumberComplex * i : foldNumberComplex * (i + 1)]
+			trainingComplexSet = list(set(tmp_clusters) - set(evaluatingComplexSet))
+
+			#set the positive PPIs
+			positiveTraningPPIs, positiveEvaluatingPPIs = set([]), set([])
+
+			#generate the positive PPIs in training complex set.
+			for index in trainingComplexSet:
+
+				tmp_complexes = Clusters(False)
+				tmp_complexes.addComplex(index, self.complexes.complexes[index])
+				tmp_p, tmp_n = tmp_complexes.getPositiveAndNegativeInteractions()
+				tmp_p = tmp_p & val_ppis
+				positiveTraningPPIs = tmp_p | positiveTraningPPIs
+				training.complexes.addComplex(index, self.complexes.complexes[index])
+				training.add_positive(tmp_p)
+
+				training.add_negative(tmp_n)
+
+				print "i am debugging here"
+				print
+
+
+			#generate the positive PPIs in evaluating complex set.
+			for index in evaluatingComplexSet:
+
+				tmp_complexes = Clusters(False)
+				tmp_complexes.addComplex(index, self.complexes.complexes[index])
+				tmp_p, _ = tmp_complexes.getPositiveAndNegativeInteractions()
+				tmp_p = tmp_p & val_ppis
+				positiveEvaluatingPPIs = tmp_p | positiveEvaluatingPPIs
+				evaluation.complexes.addComplex(index, self.complexes.complexes[index])
+				evaluation.add_positive(tmp_p)
+				evaluation.add_negative(evaluationNegatives)
+
+			training.rebalance()
+			evaluation.rebalance()
+
+			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
+
+		return training_evaluation_dictionary
 
 	def split_into_holdout_training(self, val_ppis, no_overlapp=False): #what is vak_ppis
 
