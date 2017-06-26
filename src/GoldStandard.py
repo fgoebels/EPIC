@@ -172,9 +172,6 @@ class Goldstandard_from_Complexes():
 			evaluatingComplexSet = tmp_clusters[foldNumberComplex * i : foldNumberComplex * (i + 1)]
 			trainingComplexSet = list(set(tmp_clusters) - set(evaluatingComplexSet))
 
-			#set the positive PPIs
-			positiveTraningPPIs, positiveEvaluatingPPIs = set([]), set([])
-
 			#generate the positive PPIs in training complex set.
 			tmp_training_complexes = Clusters(False)
 			for index in trainingComplexSet:
@@ -207,7 +204,9 @@ class Goldstandard_from_Complexes():
 
 			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
 
-		print len(training_evaluation_dictionary)
+			print "I am debugging here"
+			print len(training.get_negative())
+			print len(evaluation.get_positive())
 
 		return training_evaluation_dictionary
 
@@ -281,7 +280,10 @@ class Goldstandard_from_Complexes():
 	#		CalculateCoElutionScores toMerge a second CalculateCoElutionScores which should be combined with self object
 	#		mode donates how to merge the sets, left (l), right (r), union (u), or  (i)
 	def rebalance(self, ratio = 5):
+		#if the negative set is not larg enough, we choose to reblance it based on the negative set...
+		#a trial version added by Lucas HU
 		if len(self.positive) * self.ratio > len(self.negative):
+			self.positive = set(rnd.sample(self.positive, int(len(self.negative) / self.ratio)))
 			print("Warning: not enough negative data points in reference to create desired ratio pos:%s, neg:%s" % (len(self.positive), len(self.negative)))
 		else:
 			self.negative = set(rnd.sample(self.negative, len(self.positive)*self.ratio))

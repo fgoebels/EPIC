@@ -20,8 +20,12 @@ def Goldstandard_from_cluster_File(gsF, foundprots=""):
 def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F):
 	outFH_evaluation = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
 
+	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
+
 	for index in range(n_fold):
-		train, eval = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])[index]
+		#train, eval = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])[index]
+		train, eval = tmp_train_eval_container[index]
+
 
 		print "All comp:%i" % len(all_gs.complexes.complexes)
 		print "Train comp:%i" % len(train.complexes.complexes)
@@ -42,8 +46,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		print functionalData.scores.shape
 
 		# Predict protein interaction
-		network = utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
-		#network = utils.make_predictions(scoreCalc, mode, clf, all_gs, functionalData)
+		network = utils.make_predictions(scoreCalc, mode, clf, eval, functionalData)
 		outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
 		print >> outFH, "\n".join(network)
 		outFH.close()
@@ -54,10 +57,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		# Evaluating predicted clusters
 		pred_clusters = GS.Clusters(False)
 		pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode + anno_source))
-		#utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
 		clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
-
-		#outFH = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
 
 		head = clusterEvaluationScores[1]
 		cluster_scores = clusterEvaluationScores[0]
@@ -71,10 +71,6 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		outFH_evaluation.write("\t".join(tmp_scores))
 		outFH_evaluation.write("\n")
 
-		#for i in range(len(tmp_head)):
-
-			#outFH_evaluation.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
-			#outFH_evaluation.write("\n")
 
 		print "processinng fold times " + str(index + 1)
 
@@ -122,10 +118,10 @@ def main():
 	#n_fold cross validation to select the best features.
 	n_fold_cross_validation(10, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F)
 
-	###### actually predict the network using all data
-	#train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
-
 	sys.exit()
+
+	###### actually predict the network using all data
+	train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 
 	print "All comp:%i" % len(all_gs.complexes.complexes)
 	print "Train comp:%i" % len(train.complexes.complexes)
