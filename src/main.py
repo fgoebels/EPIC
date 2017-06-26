@@ -23,9 +23,8 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
 
 	for index in range(n_fold):
-		#train, eval = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])[index]
-		train, eval = tmp_train_eval_container[index]
 
+		train, eval = tmp_train_eval_container[index]
 
 		print "All comp:%i" % len(all_gs.complexes.complexes)
 		print "Train comp:%i" % len(train.complexes.complexes)
@@ -45,8 +44,10 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 
 		print functionalData.scores.shape
 
-		# Predict protein interaction
-		network = utils.make_predictions(scoreCalc, mode, clf, eval, functionalData)
+		# Predict protein interaction based on n_fold cross validation
+		#network = utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
+		network = utils.make_predictions_cross_validation(scoreCalc, train, eval, clf)
+
 		outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
 		print >> outFH, "\n".join(network)
 		outFH.close()

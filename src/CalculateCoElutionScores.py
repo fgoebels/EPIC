@@ -1014,6 +1014,13 @@ class CLF_Wrapper:
 		curve_roc = roc_curve(targets, probs)
 		return [precision, recall, fmeasure, auc_pr, auc_roc, curve_pr, curve_roc]
 
+	# a function added by Lucas HU for n_fold corss validation
+	# a trial verison
+	def eval_cross_valdation(self, data):
+		probs = self.predict_proba(data)
+		preds = self.predict(data)
+		return probs, preds
+
 	# @author: Florian Goebels
 	# @Param:
 	#		toPred matric where each row is a data point and predicts interaction propability for a given set

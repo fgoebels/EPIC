@@ -206,7 +206,7 @@ class Goldstandard_from_Complexes():
 
 			print "I am debugging here"
 			print len(training.get_negative())
-			print len(evaluation.get_positive())
+			print len(training.get_positive())
 
 		return training_evaluation_dictionary
 
