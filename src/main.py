@@ -66,9 +66,9 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		tmp_scores = cluster_scores.split("\t")
 
 		if index == 0:
-			outFH_evaluation.write(tmp_head.join("\t"))
+			outFH_evaluation.write("\t".join(tmp_head))
 
-		outFH_evaluation.write(tmp_scores.join("\t"))
+		outFH_evaluation.write("\t".join(tmp_scores))
 		outFH_evaluation.write("\n")
 
 		#for i in range(len(tmp_head)):
