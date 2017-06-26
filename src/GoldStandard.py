@@ -195,7 +195,7 @@ class Goldstandard_from_Complexes():
 				training.add_negative(tmp_n)
 
 				print "i am debugging here"
-				print
+				print len(training.get_negative())
 
 
 			#generate the positive PPIs in evaluating complex set.
