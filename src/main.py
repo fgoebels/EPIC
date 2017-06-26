@@ -64,11 +64,19 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 
 		tmp_head = head.split("\t")
 		tmp_scores = cluster_scores.split("\t")
-		for i in range(len(tmp_head)):
-			outFH_evaluation.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
-			outFH_evaluation.write("\n")
 
-		print "procesinng fold " + str(i)
+		if index == 0:
+			outFH_evaluation.write(tmp_head.join("\t"))
+
+		outFH_evaluation.write(tmp_scores.join("\t"))
+		outFH_evaluation.write("\n")
+
+		#for i in range(len(tmp_head)):
+
+			#outFH_evaluation.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
+			#outFH_evaluation.write("\n")
+
+		print "processinng fold " + str(index)
 
 	outFH_evaluation.close()
 

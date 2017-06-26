@@ -205,12 +205,15 @@ class Goldstandard_from_Complexes():
 			print "i am debugging now"
 			print len(evaluation.get_negative())
 			print len(evaluation.get_positive())
+			print len(training.get_negative())
+			print len(training.get_positive())
 
 			training.rebalance()
 			evaluation.rebalance()
 
 			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
 
+		print len(training_evaluation_dictionary)
 
 		return training_evaluation_dictionary
 
