@@ -76,7 +76,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 			#outFH_evaluation.write("%s\t%s" % (tmp_head[i], tmp_scores[i]))
 			#outFH_evaluation.write("\n")
 
-		print "processinng fold " + str(index + 1)
+		print "processinng fold times " + str(index + 1)
 
 	outFH_evaluation.close()
 
