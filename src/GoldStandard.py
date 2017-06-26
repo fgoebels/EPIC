@@ -202,12 +202,6 @@ class Goldstandard_from_Complexes():
 			evaluation.add_positive(tmp_p2)
 			evaluation.add_negative(tmp_n2)
 
-			print "i am debugging now"
-			print len(evaluation.get_negative())
-			print len(evaluation.get_positive())
-			print len(training.get_negative())
-			print len(training.get_positive())
-
 			training.rebalance()
 			evaluation.rebalance()
 
