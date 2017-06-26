@@ -122,9 +122,10 @@ def main():
 	#n_fold cross validation to select the best features.
 	n_fold_cross_validation(10, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F)
 
-	# actually predict the network using all data
+	###### actually predict the network using all data
 	#train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 
+	sys.exit()
 
 	print "All comp:%i" % len(all_gs.complexes.complexes)
 	print "Train comp:%i" % len(train.complexes.complexes)
