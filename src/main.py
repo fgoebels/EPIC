@@ -72,21 +72,6 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 			complex_count = complex_count + 1
 
 
-
-		#clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
-
-		#head = clusterEvaluationScores[1]
-		#cluster_scores = clusterEvaluationScores[0]
-
-		#tmp_head = head.split("\t")
-		#tmp_scores = cluster_scores.split("\t")
-
-		#if index == 0:
-			#outFH_evaluation.write("\t".join(tmp_head))
-
-		#outFH_evaluation.write("\t".join(tmp_scores))
-		#outFH_evaluation.write("\n")
-
 		print "processinng fold times " + str(index + 1)
 
 	pred_all_clusters.merge_complexes()
