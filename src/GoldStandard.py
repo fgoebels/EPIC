@@ -204,7 +204,7 @@ class Goldstandard_from_Complexes():
 
 			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
 
-			print "I am debugging here"
+			print "the number of training negatives and positives for corss validation "
 			print len(training.get_negative())
 			print len(training.get_positive())
 
@@ -400,6 +400,9 @@ class Clusters():
 			prots = self.complexes[clust]
 			out.append("\t".join(prots))
 		return "\n".join(out)
+
+	def return_complex_dict(self):
+		return self.complexes
 
 
 

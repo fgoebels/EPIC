@@ -22,6 +22,11 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 
 	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
 
+	#the global cluster will contain all clusters predcited from n-fold-corss validation
+	pred_all_clusters = GS.Clusters(False)
+
+	complex_count = 0
+
 	for index in range(n_fold):
 
 		train, eval = tmp_train_eval_container[index]
@@ -45,7 +50,6 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		print functionalData.scores.shape
 
 		# Predict protein interaction based on n_fold cross validation
-		#network = utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
 		network = utils.make_predictions_cross_validation(scoreCalc, train, eval, clf)
 
 		outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
@@ -58,22 +62,51 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 		# Evaluating predicted clusters
 		pred_clusters = GS.Clusters(False)
 		pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode + anno_source))
-		clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
 
-		head = clusterEvaluationScores[1]
-		cluster_scores = clusterEvaluationScores[0]
+		tmp_complexes_dict = pred_clusters.return_complex_dict()
 
-		tmp_head = head.split("\t")
-		tmp_scores = cluster_scores.split("\t")
+		for key in tmp_complexes_dict:
 
-		if index == 0:
-			outFH_evaluation.write("\t".join(tmp_head))
+			pred_all_clusters.addComplex(complex_count, tmp_complexes_dict[key])
 
-		outFH_evaluation.write("\t".join(tmp_scores))
-		outFH_evaluation.write("\n")
+			complex_count = complex_count + 1
 
+
+
+		#clusterEvaluationScores = utils.clustering_evaluation(eval.complexes, pred_clusters, "", True)
+
+		#head = clusterEvaluationScores[1]
+		#cluster_scores = clusterEvaluationScores[0]
+
+		#tmp_head = head.split("\t")
+		#tmp_scores = cluster_scores.split("\t")
+
+		#if index == 0:
+			#outFH_evaluation.write("\t".join(tmp_head))
+
+		#outFH_evaluation.write("\t".join(tmp_scores))
+		#outFH_evaluation.write("\n")
 
 		print "processinng fold times " + str(index + 1)
+
+	print "I am here"
+	print pred_all_clusters.return_complex_dict()
+	print len(pred_all_clusters.return_complex_dict())
+
+	clusterEvaluationScores = utils.clustering_evaluation(all_gs.complexes, pred_all_clusters, "", True)
+	head = clusterEvaluationScores[1]
+	cluster_scores = clusterEvaluationScores[0]
+
+	print cluster_scores
+
+	tmp_head = head.split("\t")
+	tmp_scores = cluster_scores.split("\t")
+
+
+	outFH_evaluation.write("\t".join(tmp_head))
+
+	outFH_evaluation.write("\t".join(tmp_scores))
+	outFH_evaluation.write("\n")
 
 	outFH_evaluation.close()
 

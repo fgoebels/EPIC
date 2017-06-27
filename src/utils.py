@@ -33,16 +33,17 @@ def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"
 def make_predictions_cross_validation(scoreCalc, train, eval, clf):
 
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
-	_, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
+	eval_names, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
 
 	clf.fit(data_train, targets_train)
 	probs, predicts = clf.eval_cross_valdation(data_eval)
 
-	print "i am here"
-	print len(probs)
-	print len(predicts)
+	networkDic = {}
+	for index in range(len(probs)):
+		if predicts[index] == 1:
+			networkDic[eval_names[index]] = probs[index]
 
-	return probs, predicts
+	return networkDic
 
 
 # @author: Florian Goebels
