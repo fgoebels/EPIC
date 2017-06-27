@@ -36,14 +36,13 @@ def main():
 	foundprots, elution_datas = utils.load_data(input_dir, this_scores)
 
 	# Generate reference data set
-	all_gs = utils.create_goldstandard(target_taxid, foundprots)
-	#all_gs = Goldstandard_from_cluster_File(refF, foundprots)
-	sys.exit()
+	#all_gs = utils.create_goldstandard(target_taxid, foundprots)
+	all_gs = Goldstandard_from_cluster_File(refF, foundprots)
 #	print len(all_gs.positive)
 #	print len(all_gs.negative)
 
 
-	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0.5)
 	scoreCalc.calculate_coelutionDatas(all_gs)
 #	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print "training ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
@@ -68,7 +67,7 @@ def main():
 	print functionalData.scores.shape
 
 	# Predict protein interaction
-	network =  utils.make_predictions(scoreCalc, mode, clf, train, functionalData)
+	network =  utils.make_predictions(scoreCalc, mode, clf, all_gs, functionalData)
 	outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
 	print >> outFH, "\n".join(network)
 	outFH.close()
