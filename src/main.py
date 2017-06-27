@@ -15,6 +15,90 @@ def Goldstandard_from_cluster_File(gsF, foundprots=""):
 	gs.make_pos_neg_ppis()
 	return gs
 
+# a function added by lucas, to use n_fold cross_validation to help select features.
+# a trial version though.
+def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F):
+	outFH_evaluation = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
+
+	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
+
+	#the global cluster will contain all clusters predcited from n-fold-corss validation
+	pred_all_clusters = GS.Clusters(False)
+
+	complex_count = 0
+
+	for index in range(n_fold):
+
+		train, eval = tmp_train_eval_container[index]
+
+		print "All comp:%i" % len(all_gs.complexes.complexes)
+		print "Train comp:%i" % len(train.complexes.complexes)
+		print "Eval comp:%i" % len(eval.complexes.complexes)
+
+		print "Num valid ppis in training pos: %i" % len(train.positive)
+		print "Num valid ppis in training neg: %i" % len(train.negative)
+		print "Num valid ppis in eval pos: %i" % len(eval.positive)
+		print "Num valid ppis in eval neg: %i" % len(eval.negative)
+
+		# Evaluate classifier
+		utils.bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
+
+		functionalData = ""
+		if mode != "exp":
+			functionalData = utils.get_FA_data(anno_source, anno_F)
+
+		print functionalData.scores.shape
+
+		# Predict protein interaction based on n_fold cross validation
+		network = utils.make_predictions_cross_validation(scoreCalc, train, eval, clf)
+
+		outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
+		print >> outFH, "\n".join(network)
+		outFH.close()
+
+		# Predicting clusters
+		utils.predict_clusters("%s.%s.pred.txt" % (output_dir, mode + anno_source), "%s.%s.clust.txt" % (output_dir, mode + anno_source))
+
+		# Evaluating predicted clusters
+		pred_clusters = GS.Clusters(False)
+		pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode + anno_source))
+
+		tmp_complexes_dict = pred_clusters.return_complex_dict()
+
+		for key in tmp_complexes_dict:
+
+			pred_all_clusters.addComplex(complex_count, tmp_complexes_dict[key])
+
+			complex_count = complex_count + 1
+
+
+		print "processinng fold times " + str(index + 1)
+
+	pred_all_clusters.merge_complexes()
+
+	print "I am here"
+	print pred_all_clusters.return_complex_dict()
+	print len(pred_all_clusters.return_complex_dict())
+
+	clusterEvaluationScores = utils.clustering_evaluation(all_gs.complexes, pred_all_clusters, "", True)
+	head = clusterEvaluationScores[1]
+	cluster_scores = clusterEvaluationScores[0]
+
+	print cluster_scores
+
+	tmp_head = head.split("\t")
+	tmp_scores = cluster_scores.split("\t")
+
+
+	outFH_evaluation.write("\t".join(tmp_head))
+
+	outFH_evaluation.write("\t".join(tmp_scores))
+	outFH_evaluation.write("\n")
+
+	outFH_evaluation.close()
+
+
+
 def main():
 	feature_combination, input_dir, use_rf, num_cores, mode, anno_source, anno_F, target_taxid, refF, output_dir = sys.argv[1:]
 
@@ -36,16 +120,27 @@ def main():
 	foundprots, elution_datas = utils.load_data(input_dir, this_scores)
 
 	# Generate reference data set
-	#all_gs = utils.create_goldstandard(target_taxid, foundprots)
-	all_gs = Goldstandard_from_cluster_File(refF, foundprots)
-#	print len(all_gs.positive)
-#	print len(all_gs.negative)
+	if refF == "":
+		all_gs = utils.create_goldstandard(target_taxid, foundprots)
+	else:
+		all_gs = Goldstandard_from_cluster_File(refF, foundprots)
+	all_gs = utils.create_goldstandard(target_taxid, foundprots)
+	#all_gs = Goldstandard_from_cluster_File(refF, foundprots)
+#	sys.exit()
 
 
-	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0.5)
-	scoreCalc.calculate_coelutionDatas(all_gs)
-#	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
+	#scoreCalc.calculate_coelutionDatas(all_gs)
+	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
+
 	print "training ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
+
+	#n_fold cross validation to select the best features.
+	n_fold_cross_validation(10, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F)
+
+	sys.exit()
+
+	###### actually predict the network using all data
 	train, eval = all_gs.split_into_holdout_training(set(scoreCalc.ppiToIndex.keys()))
 
 	print "All comp:%i" % len(all_gs.complexes.complexes)
@@ -67,7 +162,7 @@ def main():
 	print functionalData.scores.shape
 
 	# Predict protein interaction
-	network =  utils.make_predictions(scoreCalc, mode, clf, all_gs, functionalData)
+	network = utils.make_predictions(scoreCalc, mode, clf, all_gs, functionalData)
 	outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
 	print >> outFH, "\n".join(network)
 	outFH.close()

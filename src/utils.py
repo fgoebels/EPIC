@@ -12,6 +12,7 @@ import json
 def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"):
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
 	_, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
+
 	clf.fit(data_train, targets_train)
 	precision, recall, fmeasure, auc_pr, auc_roc, curve_pr, curve_roc = clf.eval(data_eval, targets_eval)
 	plotCurves([("", curve_roc)], outDir + ".roc." + format, "False Positive rate", "True Positive Rate")
@@ -26,6 +27,24 @@ def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"
 		for i in range(len(rownames)):
 			print rownames[i]
 			print val_scores[i]
+
+# a function added by Lucas HU for n_fold corss validation
+# a trial verison
+def make_predictions_cross_validation(scoreCalc, train, eval, clf):
+
+	_, data_train, targets_train = scoreCalc.toSklearnData(train)
+	eval_names, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
+
+	clf.fit(data_train, targets_train)
+	probs, predicts = clf.eval_cross_valdation(data_eval)
+
+	networkDic = {}
+	for index in range(len(probs)):
+		if predicts[index] == 1:
+			networkDic[eval_names[index]] = probs[index]
+
+	return networkDic
+
 
 # @author: Florian Goebels
 # makes precision recall plot for mutliple rp ccurves
@@ -53,10 +72,15 @@ def plotCurves(curves, outF, xlab, ylab):
 	plt.close()
 
 # @author Florian Goebels
-def predictInteractions(scoreCalc, clf, gs, verbose= False):
+def predictInteractions(scoreCalc, clf, gs, eval, verbose= False, corss_validation = False):
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(gs)
+
+
 	clf.fit(data_train, targets_train)
+
 	num_features = data_train.shape[1]
+
+
 	def getPredictions(scores, edges, clf):
 		out = []
 		pred_prob = clf.predict_proba(scores)
