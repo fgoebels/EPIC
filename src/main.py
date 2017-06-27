@@ -89,6 +89,8 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 
 		print "processinng fold times " + str(index + 1)
 
+	pred_all_clusters.merge_complexes()
+
 	print "I am here"
 	print pred_all_clusters.return_complex_dict()
 	print len(pred_all_clusters.return_complex_dict())
