@@ -31,19 +31,15 @@ def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"
 # a function added by Lucas HU for n_fold corss validation
 # a trial verison
 def make_predictions_cross_validation(scoreCalc, train, eval, clf):
-
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
 
 	eval_names, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
-
 	clf.fit(data_train, targets_train)
-	probs, predicts = clf.eval_cross_valdation(data_eval)
-
+	probs, predicts = clf.predict_proba(data_eval), clf.predict(data_eval)
 	networkDic = {}
 	for index in range(len(probs)):
 		if predicts[index] == 1:
 			networkDic[eval_names[index]] = probs[index]
-
 	return networkDic
 
 # @author: Florian Goebels

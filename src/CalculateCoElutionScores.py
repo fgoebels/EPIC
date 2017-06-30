@@ -100,9 +100,9 @@ class ElutionData():
 	#		self.elutionMat numpy matric cnsisting of only the counts 
 	#		self.normedElutionMat numpy matric containing normalized spectral counts 
 	#		self.prot2Index dictonary mapping protein to it's respective row index in self.elutionMat and self.normedElutionMat
-	def __init__(self, elutionProfileF):
+	def __init__(self, elutionProfileF, frac_count=2):
 		self.name = os.path.split(elutionProfileF)[-1]
-		self.elutionMat, self.prot2Index  = self.loadElutionData(elutionProfileF)
+		self.elutionMat, self.prot2Index  = self.loadElutionData(elutionProfileF, frac_count=frac_count)
 		self.normedElutionMat = normalize_fracs(self.elutionMat)
 		self.elutionMat = np.array(self.elutionMat)
 
