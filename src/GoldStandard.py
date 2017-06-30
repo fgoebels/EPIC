@@ -153,9 +153,6 @@ class Goldstandard_from_Complexes():
 		#get the neagtive PPIs which detected in co-fractionation experiments (the overlap of two sets)
 		negativePPIs = val_ppis & allPossibleNegative
 
-		trainingNegatives = set(list(negativePPIs)[:int(len(negativePPIs) / 2)])
-		evaluationNegatives = set(list(negativePPIs)[int(len(negativePPIs) / 2):])
-
 		rnd.shuffle(tmp_clusters)
 
 		foldNumberComplex = int(len(tmp_clusters)/n_fold)

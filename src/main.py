@@ -76,8 +76,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 
 	pred_all_clusters.merge_complexes()
 
-	print "I am here"
-	print pred_all_clusters.return_complex_dict()
+	print "number of complexes"
 	print len(pred_all_clusters.return_complex_dict())
 
 	clusterEvaluationScores = utils.clustering_evaluation(all_gs.complexes, pred_all_clusters, "", True)
@@ -91,7 +90,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, an
 
 
 	outFH_evaluation.write("\t".join(tmp_head))
-
+	outFH_evaluation.write("\n")
 	outFH_evaluation.write("\t".join(tmp_scores))
 	outFH_evaluation.write("\n")
 
@@ -131,10 +130,14 @@ def main():
 #	sys.exit()
 
 
-	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0)
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, output_dir + ".scores.txt", num_cores=num_cores, cutoff= 0.5)
 	#scoreCalc.calculate_coelutionDatas(all_gs)
 	scoreCalc.readTable(output_dir + ".scores.txt", all_gs)
 	print "training ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
+
+	#n_fold cross validation to test the stability of preicted PPIs
+	utils.stability_evaluation(10, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F)
+	sys.exit()
 
 	#n_fold cross validation to select the best features.
 	n_fold_cross_validation(10, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F)

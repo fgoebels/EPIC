@@ -33,6 +33,7 @@ def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"
 def make_predictions_cross_validation(scoreCalc, train, eval, clf):
 
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
+
 	eval_names, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
 
 	clf.fit(data_train, targets_train)
@@ -44,7 +45,6 @@ def make_predictions_cross_validation(scoreCalc, train, eval, clf):
 			networkDic[eval_names[index]] = probs[index]
 
 	return networkDic
-
 
 # @author: Florian Goebels
 # makes precision recall plot for mutliple rp ccurves
@@ -73,6 +73,7 @@ def plotCurves(curves, outF, xlab, ylab):
 
 # @author Florian Goebels
 def predictInteractions(scoreCalc, clf, gs, eval, verbose= False, corss_validation = False):
+
 	ids_train, data_train, targets_train = scoreCalc.toSklearnData(gs)
 
 
@@ -179,11 +180,27 @@ def make_predictions(score_calc, mode, clf, gs, fun_anno="", verbose = False):
 		merged = get_edges_from_network(networks[2])
 		br_edges = set(exp.keys()) | (set(merged.keys()) - set(fa.keys()))
 		br_network = []
+		network_edges = []
 		for edge in br_edges:
 			if edge in exp: score = exp[edge]
 			else: score = merged[edge]
 			br_network.append("%s\t%s" % (edge, score))
+			network_edges.append(edge)
 		return br_network
+
+# a fucntion added by Lucas HU, for testing algorithm stability
+# just return the edges of PPIs without interaction scores
+# a trial version
+def get_network_edges(network):
+	network_edges = []
+
+	for items in network:
+		proteinA, proteinB, score = items.split("\t")
+		edge = "\t".join(sorted([proteinA, proteinB]))
+		network_edges.append(edge)
+
+	return network_edges
+
 
 def predict_clusters(predF, outF):
 	dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -382,3 +399,57 @@ def prep_network_for_cy(nodes, edges):
 		"elements": {"nodes": nodes, 'edges': edges}
 	}
 	return BASE, json.dumps(network_cy), HEADERS
+
+# a fucntion added by Lucas HU to test the stability of prediction using n-fold cross validation
+# focus on the PPI level, and see if each time predicetd similar set of PPIs, we use n_fold of data to do this...
+def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F):
+
+	outFH_evaluation = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
+
+	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
+
+	#print (tmp_train_eval_container[0][0]).get_complexes().return_complex_dict()
+
+	#the global cluster will contain all clusters predcited from n-fold-corss validation
+	pred_all_clusters = GS.Clusters(False)
+
+	complex_count = 0
+
+	#create the dictionary to store the predicted PPIs
+	PPIs_dict_for_each_fold = {}
+
+	for index in range(n_fold):
+
+		train, eval = tmp_train_eval_container[index]
+
+		print "All comp:%i" % len(all_gs.complexes.complexes)
+		print "Train comp:%i" % len(train.complexes.complexes)
+		print "Eval comp:%i" % len(eval.complexes.complexes)
+
+		print "Num valid ppis in training pos: %i" % len(train.positive)
+		print "Num valid ppis in training neg: %i" % len(train.negative)
+		print "Num valid ppis in eval pos: %i" % len(eval.positive)
+		print "Num valid ppis in eval neg: %i" % len(eval.negative)
+
+		# Evaluate classifier
+		bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
+
+		functionalData = ""
+		if mode != "exp":
+			functionalData = get_FA_data(anno_source, anno_F)
+			print functionalData.scores.shape
+
+		print "the functional evidence data shape is: "
+
+
+		# Predict protein interaction based on n_fold cross validation
+		network = make_predictions(scoreCalc, "exp", clf, train, fun_anno="", verbose = False)
+
+		PPIs_dict_for_each_fold[index] = set(get_network_edges(network))
+
+		print "fold " + str(index+1) + "is done"
+
+	for i in range(n_fold):
+		if i != 0:
+			print "overlapped PPIs"
+			print len(PPIs_dict_for_each_fold[i - 1] & PPIs_dict_for_each_fold[i])
