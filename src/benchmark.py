@@ -432,7 +432,7 @@ class feature_selector:
 def write_reference(args):
 	input_dir, taxid, output_dir = args
 	foundprots, elution_datas = utils.load_data(input_dir, [])
-	gs = utils.create_goldstandard(taxid, foundprots)
+	gs = utils.create_goldstandard(taxid, "")
 	out = gs.complexes.to_string()
 	outFH = open(output_dir, "w")
 	print >> outFH, out
@@ -573,6 +573,34 @@ def get_fs_comb(comb_string):
 		if feature_selection == "1": this_scores.append(scores[i])
 	return this_scores
 
+def make_eval(args):
+	pred_clust_F, ref_clust_F = args
+
+	pred_clusters = GS.Clusters(False)
+	pred_clusters.read_file(pred_clust_F)
+
+	ref_clusters = GS.Clusters(False)
+	ref_clusters.read_file(ref_clust_F)
+
+	#	utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
+	utils.clustering_evaluation(ref_clusters, pred_clusters, "", True)
+
+
+def orth_map(args):
+	clusterF, taxid, outF = args
+
+	clust = GS.Clusters(False)
+	clust.read_file(clusterF)
+
+	orthmap = GS.Inparanoid(taxid=taxid)
+	orthmap.mapComplexes(clust)
+
+	clust.merge_complexes()
+	clust.filter_complexes()
+
+	outFH = open(outF,"w")
+	outFH.write(clust.to_string())
+	outFH.close()
 
 def main():
 	mode = sys.argv[1]
@@ -603,6 +631,12 @@ def main():
 
 	elif mode == "-best_fs2":
 		EPIC_eval_fs(sys.argv[2:])
+
+	elif mode == "-get_eval":
+		make_eval(sys.argv[2:])
+
+	elif mode == "-orthmap":
+		orth_map(sys.argv[2:])
 
 if __name__ == "__main__":
 	try:
