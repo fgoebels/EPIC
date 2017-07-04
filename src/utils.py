@@ -405,6 +405,9 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 	#create the dictionary to store the predicted PPIs
 	PPIs_dict_for_each_fold = {}
 
+	#create the dictionary to store the predicted complexes
+	complexes_dict_for_each_fold = {}
+
 	for index in range(n_fold):
 
 		train, eval = tmp_train_eval_container[index]
@@ -434,18 +437,40 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 
 		PPIs_dict_for_each_fold[index] = set(get_network_edges(network))
 
+		#predicted_clusters from the predicted PPI network
+		predict_clusters("%s.%s.pred.txt" % (output_dir, mode + anno_source),
+							   "%s.%s.clust.txt" % (output_dir, mode + anno_source))
+
+		pred_clusters = GS.Clusters(False)
+		pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, mode + anno_source))
+
+		complexes_dict_for_each_fold[index] = pred_clusters
+
 		print "fold " + str(index+1) + "is done"
 
 	#create a matrix for storing overlapped matrix, each element in the matrix is a zero.
-	overlapped_ratio_matrix = np.zeros((n_fold,n_fold))
+	overlapped_ratio_matrix_PPIs = np.zeros((n_fold,n_fold))
+	overlapped_ratio_matrix_complexes =  np.zeros((n_fold,n_fold))
 
 	for i in range(0, n_fold):
 		for j in range(0, n_fold):
-			overlapped_ratio_matrix[i,j] = (len(PPIs_dict_for_each_fold[i] & PPIs_dict_for_each_fold[j])) / ((len(PPIs_dict_for_each_fold[i]) + len(PPIs_dict_for_each_fold[j])) / 2)
 
-	print overlapped_ratio_matrix
+			overlapped_ratio_matrix_PPIs[i,j] = (len(PPIs_dict_for_each_fold[i] & PPIs_dict_for_each_fold[j])) / ((len(PPIs_dict_for_each_fold[i]) + len(PPIs_dict_for_each_fold[j])) / 2)
+
+			overlapped_no1 = overlapped_ratio_matrix_complexes[i].getOverlapp(overlapped_ratio_matrix_complexes[j], cutoff = 0.25)
+
+			overlapped_no2 = overlapped_ratio_matrix_complexes[j].getOverlapp(overlapped_ratio_matrix_complexes[i], cutoff = 0.25)
+
+			averaged_overlapped_complexes_no = (overlapped_no1 + overlapped_no2) / 2
+
+			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(PPIs_dict_for_each_fold[i]) + len(PPIs_dict_for_each_fold[j])) / 2)
+
+	print overlapped_ratio_matrix_PPIs
+	print overlapped_ratio_matrix_complexes
 
 	# create the txt file to save the overlap matrix for stabilit testing.
-	filename = output_dir + "n_fold_corss_validation_PPIs overlap matrix.txt"
+	filename1 = output_dir + " n_fold_corss_validation_PPIs overlap matrix.txt"
+	filename2 = output_dir + " n_fold_corss_validation_complexes overlap matrix.txt"
 
-	np.savetxt(filename, overlapped_ratio_matrix, delimiter = '\t')
+	np.savetxt(filename1, overlapped_ratio_matrix_PPIs, delimiter = '\t')
+	np.savetxt(filename2, overlapped_ratio_matrix_complexes, delimiter='\t')
