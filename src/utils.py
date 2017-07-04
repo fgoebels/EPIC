@@ -463,7 +463,7 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 
 			averaged_overlapped_complexes_no = (overlapped_no1 + overlapped_no2) / 2
 
-			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(PPIs_dict_for_each_fold[i]) + len(PPIs_dict_for_each_fold[j])) / 2)
+			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(overlapped_ratio_matrix_complexes[i].return_complex_dict()) + len(overlapped_ratio_matrix_complexes[j].return_complex_dict())) / 2)
 
 	print overlapped_ratio_matrix_PPIs
 	print overlapped_ratio_matrix_complexes
