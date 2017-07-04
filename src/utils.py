@@ -400,16 +400,7 @@ def prep_network_for_cy(nodes, edges):
 # focus on the PPI level, and see if each time predicetd similar set of PPIs, we use n_fold of data to do this...
 def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_source, anno_F):
 
-	outFH_evaluation = open("%s.%s.evaluation.txt" % (output_dir, mode + anno_source), "w")
-
 	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
-
-	#print (tmp_train_eval_container[0][0]).get_complexes().return_complex_dict()
-
-	#the global cluster will contain all clusters predcited from n-fold-corss validation
-	pred_all_clusters = GS.Clusters(False)
-
-	complex_count = 0
 
 	#create the dictionary to store the predicted PPIs
 	PPIs_dict_for_each_fold = {}
@@ -445,7 +436,16 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 
 		print "fold " + str(index+1) + "is done"
 
-	for i in range(n_fold):
-		if i != 0:
-			print "overlapped PPIs"
-			print len(PPIs_dict_for_each_fold[i - 1] & PPIs_dict_for_each_fold[i])
+	#create a matrix for storing overlapped matrix, each element in the matrix is a zero.
+	overlapped_ratio_matrix = np.zeros((n_fold,n_fold))
+
+	for i in range(0, n_fold):
+		for j in range(0, n_fold):
+			overlapped_ratio_matrix[i,j] = (len(PPIs_dict_for_each_fold[i] & PPIs_dict_for_each_fold[j])) / ((len(PPIs_dict_for_each_fold[i]) + len(PPIs_dict_for_each_fold[j])) / 2)
+
+	print overlapped_ratio_matrix
+
+	# create the txt file to save the overlap matrix for stabilit testing.
+	filename = output_dir + "n_fold_corss_validation_PPIs overlap matrix.txt"
+
+	np.savetxt(filename, overlapped_ratio_matrix, delimiter = '\t')
