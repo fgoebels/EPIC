@@ -435,6 +435,11 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 		# Predict protein interaction based on n_fold cross validation
 		network = make_predictions(scoreCalc, "exp", clf, train, fun_anno="", verbose = False)
 
+		# need to write the network into a file for later-on complexes prediction.
+		outFH = open("%s.%s.pred.txt" % (output_dir, mode + anno_source), "w")
+		print >> outFH, "\n".join(network)
+		outFH.close()
+
 		PPIs_dict_for_each_fold[index] = set(get_network_edges(network))
 
 		#predicted_clusters from the predicted PPI network
