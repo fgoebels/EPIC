@@ -463,12 +463,12 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 			overlapped_ratio_matrix_PPIs[i,j] = (len(PPIs_dict_for_each_fold[i] & PPIs_dict_for_each_fold[j])) / ((len(PPIs_dict_for_each_fold[i]) + len(PPIs_dict_for_each_fold[j])) / 2)
 
 			# calculate the overlapped complexes numbers from both direction and then get the avergae of them
-			overlapped_no1 = overlapped_ratio_matrix_complexes[i].getOverlapp(overlapped_ratio_matrix_complexes[j], cutoff = 0.25)
-			overlapped_no2 = overlapped_ratio_matrix_complexes[j].getOverlapp(overlapped_ratio_matrix_complexes[i], cutoff = 0.25)
+			overlapped_no1 = complexes_dict_for_each_fold[i].getOverlapp(complexes_dict_for_each_fold[j], cutoff = 0.25)
+			overlapped_no2 = complexes_dict_for_each_fold[j].getOverlapp(complexes_dict_for_each_fold[i], cutoff = 0.25)
 
 			averaged_overlapped_complexes_no = (overlapped_no1 + overlapped_no2) / 2
 
-			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(overlapped_ratio_matrix_complexes[i].return_complex_dict()) + len(overlapped_ratio_matrix_complexes[j].return_complex_dict())) / 2)
+			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(complexes_dict_for_each_fold[i].return_complex_dict()) + len(complexes_dict_for_each_fold[j].return_complex_dict())) / 2)
 
 	print overlapped_ratio_matrix_PPIs
 	print overlapped_ratio_matrix_complexes
