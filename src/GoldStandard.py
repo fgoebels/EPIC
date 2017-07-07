@@ -71,6 +71,12 @@ class Goldstandard_from_Complexes():
 	def get_complexes(self):
 		return self.complexes
 
+	def get_complex(self, complex_id):
+		if complex_id in self.complexes:
+			return self.complexes[complex_id]
+		else:
+			return ""
+
 	def get_goldstandard(self):
 		return self.positive, self.negative
 
@@ -82,6 +88,32 @@ class Goldstandard_from_Complexes():
 
 	def get_edges(self):
 		return self.positive | self.negative
+
+
+	def n_fols_split(self, num_folds):
+
+		ref_cluster_ids = self.complexes.complexes.keys()
+		out_folds = []
+		# randomize clusters
+		rnd.shuffle(ref_cluster_ids)
+		fold_size = int(len(ref_cluster_ids) / num_folds)
+		for i in range(num_folds):
+			# create training and evaluating complexes objects.
+			evaluation = Goldstandard_from_Complexes("Evaluation")
+			training = Goldstandard_from_Complexes("Training")
+			eval_clust_ids = ref_cluster_ids[fold_size * i: min(len(ref_cluster_ids), fold_size * (i + 1))]
+			train_clust_ids = list(set(ref_cluster_ids) - set(eval_clust_ids))
+
+			for train_id in train_clust_ids: training.complexes.addComplex(train_id, self.complexes.complexes[train_id])
+			for eval_id in eval_clust_ids: evaluation.complexes.addComplex(eval_id, self.complexes.complexes[eval_id])
+
+			training.make_pos_neg_ppis()
+			training.rebalance()
+
+			evaluation.make_pos_neg_ppis()
+			out_folds.append((training, evaluation))
+
+		return out_folds
 
 	#new function added by Lucas HU to split into n-fold for n-fold cross-validation.
 	#just a trial version to test if it works.
@@ -206,6 +238,9 @@ class Goldstandard_from_Complexes():
 			print len(training.get_positive())
 
 		return training_evaluation_dictionary
+
+
+
 
 	def split_into_holdout_training(self, val_ppis, no_overlapp=False): #what is vak_ppis
 
@@ -370,7 +405,7 @@ class Clusters():
 		self.need_to_be_mapped = need_to_be_mapped
 
 	def get_complexes(self):
-		return self
+		return self.complexes
 
 	def addComplex(self, complex, members):
 		if complex not in self.complexes:
@@ -398,13 +433,8 @@ class Clusters():
 			out.append("\t".join(prots))
 		return "\n".join(out)
 
-	def return_complex_dict(self):
-		return self.complexes
-
-
-
 	# @author Florian Goebels
-	# creats all possible positive and negative protein interactions based on CORUM complex membership
+	# creats all possible positive and negative protein interactions based on  co-complex membership
 	def getPositiveAndNegativeInteractions(self):
 		positive = set([])
 		negative = set([])

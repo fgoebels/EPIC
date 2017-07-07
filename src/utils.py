@@ -34,8 +34,13 @@ def make_predictions_cross_validation(scoreCalc, train, eval, clf):
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
 
 	eval_names, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
-	clf.fit(data_train, targets_train)
-	probs, predicts = clf.predict_proba(data_eval), clf.predict(data_eval)
+
+	print "To pred"
+	print data_eval.shape
+
+	tmp_clf = copy.deepcopy(clf)
+	tmp_clf.fit(data_train, targets_train)
+	probs, predicts = tmp_clf.predict_proba(data_eval), tmp_clf.predict(data_eval)
 	networkDic = {}
 	for index in range(len(probs)):
 		if predicts[index] == 1:
@@ -468,7 +473,7 @@ def stability_evaluation(n_fold, all_gs, scoreCalc, clf, output_dir, mode, anno_
 
 			averaged_overlapped_complexes_no = (overlapped_no1 + overlapped_no2) / 2
 
-			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(complexes_dict_for_each_fold[i].return_complex_dict()) + len(complexes_dict_for_each_fold[j].return_complex_dict())) / 2)
+			overlapped_ratio_matrix_complexes[i,j] = averaged_overlapped_complexes_no / ((len(complexes_dict_for_each_fold[i].get_complexes()) + len(complexes_dict_for_each_fold[j].get_complexes())) / 2)
 
 	print overlapped_ratio_matrix_PPIs
 	print overlapped_ratio_matrix_complexes

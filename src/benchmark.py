@@ -10,6 +10,71 @@ from scipy.stats import zscore
 import glob
 import random as rnd
 
+
+# a function added by lucas, to use n_fold cross_validation to help select features.
+# a trial version though.
+def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir ):
+
+
+	tmp_train_eval_container = all_gs.n_fols_split(n_fold)  #(all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
+#	tmp_train_eval_container = (all_gs.split_into_n_fold2(n_fold, set(scoreCalc.ppiToIndex.keys()))["turpleKey"])
+
+
+	#the global cluster will contain all clusters predcited from n-fold-corss validation
+	pred_all_clusters = GS.Clusters(False)
+	complex_count = 0
+
+	for index in range(n_fold):
+		print "processinng fold " + str(index + 1)
+		train, eval = tmp_train_eval_container[index]
+		print "All comp:%i" % len(all_gs.complexes.complexes)
+		print "Train comp:%i" % len(train.complexes.complexes)
+		print "Eval comp:%i" % len(eval.complexes.complexes)
+		print "Num valid ppis in training pos: %i" % len(train.positive)
+		print "Num valid ppis in training neg: %i" % len(train.negative)
+		print "Num valid ppis in eval pos: %i" % len(eval.positive)
+		print "Num valid ppis in eval neg: %i" % len(eval.negative)
+
+		# Evaluate classifier
+		# utils.bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
+		# Predict protein interaction based on n_fold cross validation
+		network = utils.make_predictions_cross_validation(scoreCalc, train, eval, clf)
+
+		netF = "%s.fold_%s.pred.txt" % (output_dir, index)
+		clustF = "%s.fold_%s.clust.txt" % (output_dir, index)
+
+		outFH = open(netF, "w")
+		print >> outFH, "\n".join(network)
+		outFH.close()
+
+		# Predicting clusters
+		utils.predict_clusters(netF, clustF)
+
+		# Evaluating predicted clusters
+		pred_clusters = GS.Clusters(False)
+		pred_clusters.read_file(clustF)
+
+		tmp_complexes_dict = pred_clusters.get_complexes()
+
+		for key in tmp_complexes_dict:
+
+			pred_all_clusters.addComplex(complex_count, tmp_complexes_dict[key])
+
+			complex_count = complex_count + 1
+
+	pred_all_clusters.merge_complexes()
+
+	print "number of complexes"
+	print len(pred_all_clusters.get_complexes())
+
+
+	out_head, out_scores = "", ""
+	if len(pred_all_clusters.complexes)>0:
+		out_scores, out_head = utils.clustering_evaluation(all_gs.complexes, pred_all_clusters, "", True)
+
+	return out_scores, out_head
+
+
 def cut(args):
 	fc, scoreF, outF = args
 	if fc == "00000000": sys.exit()
@@ -356,6 +421,7 @@ class feature_selector:
 		self.cutoff = scoreCalc.cutoff
 		self.to_predict = scoreCalc.to_predict
 		self.scoreCalc = self.filter_scoreCalc(scoreCalc)
+		self.ppiToIndex = self.scoreCalc.ppiToIndex
 
 
 	def set_cutoff(self, cutoff):
@@ -432,7 +498,7 @@ class feature_selector:
 def write_reference(args):
 	input_dir, taxid, output_dir = args
 	foundprots, elution_datas = utils.load_data(input_dir, [])
-	gs = utils.create_goldstandard(taxid, "")
+	gs = utils.create_goldstandard(taxid, foundprots)
 	out = gs.complexes.to_string()
 	outFH = open(output_dir, "w")
 	print >> outFH, out
@@ -457,112 +523,48 @@ def bench_Bayes(args):
 
 	print "%s\n%s" % (out_head, "\n".join(out_scores))
 
-def run_epic_with_feature_combinations(feature_combination, input_dir, num_cores, use_rf, scoreF,  output_dir, no_overlap_in_training, mode, fun_anno, ref_complexes="", taxid="", fs = "", globalGS = ""):
-	if ref_complexes !="" and taxid!="":
-		print "Suplly either taxid or reference complex file"
-		sys.exit()
-	all_gs = ""
-
-	clf = CS.CLF_Wrapper(num_cores, use_rf)
-
-	foundprots, elution_datas = utils.load_data(input_dir, [])
-	if globalGS == "":
-		if taxid != "": all_gs = utils.create_goldstandard(taxid, foundprots)
-		if ref_complexes != "":
-			print "Loading reference from file"
-			print ref_complexes
-			all_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
-	else:
-		all_gs = globalGS
-
-	print len(all_gs.positive)
-	print len(all_gs.negative)
-
-	scoreCalc = CS.CalculateCoElutionScores(feature_combination, elution_datas, output_dir + ".scores.txt",
-											num_cores=num_cores, cutoff=0.5)
-	scoreCalc.readTable(scoreF, all_gs)
-
-	#feature_comb = scoreCalc
+def run_epic_with_feature_combinations(feature_combination, ref_GS, scoreCalc, clf,  output_dir):
 	print scoreCalc.scores.shape
 	print "Num valid filterd ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
-	print "Num valid all pos: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(all_gs.positive))
-	print "Num valid all negative: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(all_gs.negative))
+	print "Num valid all pos: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(ref_GS.positive))
+	print "Num valid all negative: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(ref_GS.negative))
 	#all_gs.make_pos_neg_ppis(val_ppis=set(scoreCalc.ppiToIndex.keys()))
-	feature_comb = feature_selector([fs.name for fs in feature_combination], scoreCalc, foundprots)
+	feature_comb = feature_selector([fs.name for fs in feature_combination], scoreCalc, [])
 	print feature_comb.scoreCalc.scores.shape
 	print scoreCalc.scores.shape
 
-	print scoreCalc.scores == feature_comb.scoreCalc.scores
 
 	out_prefix = "_".join([fs.name for fs in feature_combination])
-	train, eval = all_gs.split_into_holdout_training(set(feature_comb.scoreCalc.ppiToIndex.keys()))
-	#train, eval = all_gs.split_into_holdout_training(set(feature_comb.ppiToIndex.keys()))
-
-	print len(all_gs.complexes.complexes)
-	print len(train.complexes.complexes)
-	print len(eval.complexes.complexes)
-
-	utils.bench_clf(feature_comb, train, eval, clf, "%s.%s" % (output_dir, out_prefix), verbose=True)
-	print "Num valid ppis in training pos: %i" % len(train.positive)
-	print "Num valid ppis in training neg: %i" % len(train.negative)
-
-	print "Num valid ppis in eval pos: %i" % len(eval.positive)
-	print "Num valid ppis in eval neg: %i" % len(eval.negative)
-
-	print fun_anno.scores.shape
-	network = utils.make_predictions(feature_comb, mode, clf, train, fun_anno, verbose=True)
-
-	outFH = open("%s.%s.pred.txt" % (output_dir, out_prefix), "w")
-	print >> outFH, "\n".join(network)
-	outFH.close()
-
-	num_ppis = CS.lineCount("%s.%s.pred.txt" % (output_dir, out_prefix))-1 #len(network)
-	if num_ppis != 0:
-
-		# Predicting clusters
-		utils.predict_clusters("%s.%s.pred.txt" % (output_dir, out_prefix),
-							   "%s.%s.clust.txt" % (output_dir, out_prefix))
-
-		# Evaluating predicted clusters
-		pred_clusters = GS.Clusters(False)
-		pred_clusters.read_file("%s.%s.clust.txt" % (output_dir, out_prefix))
-		num_cluster = CS.lineCount("%s.%s.clust.txt" % (output_dir, out_prefix))
-
-		t_s, t_h = utils.clustering_evaluation(train.complexes, pred_clusters, "Train", True)
-		e_s, e_h = utils.clustering_evaluation(eval.complexes, pred_clusters, "Eval", True)
-		out_head = "FS\tNum PPIs\tNum Clusters\t%s\t%s" % (t_h, e_h)
-		out_scores = "%s\t%i\t%i\t%s\t%s" % (out_prefix, num_ppis, num_cluster, t_s, e_s)
-		if globalGS!="":
-			g_s, g_h = utils.clustering_evaluation(globalGS.complexes, pred_clusters, "Global", True)
-			out_head += "\t%s" % g_h
-			out_scores += "\t%s" % g_s
-		return out_head, out_scores
-	else:
-		head_t = "\t".join(["%s %s" % ("Train", h) for h in
-						  ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy",
-						   "sep"]])
-		head_e = "\t".join(["%s %s" % ("Eval", h) for h in
-						  ["mmr", "overlapp", "simcoe", "mean_simcoe_overlap", "sensetivity", "ppv", "accuracy",
-						   "sep"]])
-
-		return "FS\tNum PPIs\tNum Clusters\t%s\t%s" % (head_t, head_e), "\t".join(map(str, [0]*18))
+	return n_fold_cross_validation(10, ref_GS, feature_comb, clf, output_dir)
 
 def calc_feature_combination(args):
-	feature_combination, input_dir, use_rf, fs, num_cores, scoreF, ref_complexes, output_dir = args
+	feature_combination, input_dir, use_rf, num_cores, scoreF, ref_complexes, output_dir = args
 	#Create feature combination
 	if feature_combination == "00000000": sys.exit()
 	this_scores = get_fs_comb(feature_combination)
 	num_cores = int(num_cores)
 	use_rf = use_rf == "True"
-	fs = fs =="True"
 
-	print this_scores
-	no_reference_overlap = False
+	clf_name = "SVM"
+	if use_rf: clf_name = "RF"
 
-	head, scores = run_epic_with_feature_combinations(this_scores, input_dir, num_cores, use_rf, scoreF, output_dir,
-															  no_reference_overlap, ref_complexes=ref_complexes, fs = fs)
-	outFH = open(output_dir + ".eval.wo.txt", "w")
-	print >> outFH, "%s\n%s" % (head, scores)
+	clf = CS.CLF_Wrapper(num_cores, use_rf)
+
+	foundprots, elution_datas = utils.load_data(input_dir, [])
+	ref_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, scoreF, num_cores=num_cores, cutoff=0.5)
+	scoreCalc.readTable(scoreF, ref_gs)
+
+	scores, head = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir)
+
+	outFH = open(output_dir + ".eval.txt" , "w")
+	se = input_dir.split(os.sep)[-2]
+	print "FS\tSE\tCLF\t" + head
+	print "%s\t%s\t%s\t" % (feature_combination, se, clf_name) + scores
+
+	print >> outFH, "FS\tSE\tCLF\t" + head
+	print >> outFH, "%s\t%s\t%s\t" % (feature_combination, se, clf_name) + scores
 	outFH.close()
 
 def get_fs_comb(comb_string):
