@@ -420,6 +420,7 @@ class Clusters():
 			prots = set(line.split("\t"))
 			self.addComplex(i, prots)
 			i+=1
+		clusterFH.close()
 
 	def write_cuslter_file(self, outF):
 		outFH = open(outF, "w")

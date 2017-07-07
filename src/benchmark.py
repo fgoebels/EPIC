@@ -550,10 +550,11 @@ def calc_feature_combination(args):
 
 	clf = CS.CLF_Wrapper(num_cores, use_rf)
 
-	foundprots, elution_datas = utils.load_data(input_dir, [])
-	ref_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+#	foundprots, elution_datas = utils.load_data(input_dir, [])
+	ref_gs = Goldstandard_from_cluster_File(ref_complexes)
 
-	scoreCalc = CS.CalculateCoElutionScores(this_scores, elution_datas, scoreF, num_cores=num_cores, cutoff=0.5)
+
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, "", scoreF, num_cores=num_cores, cutoff=0.5)
 	scoreCalc.readTable(scoreF, ref_gs)
 
 	scores, head = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir)
