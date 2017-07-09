@@ -32,8 +32,10 @@ def bench_clf(scoreCalc, train, eval, clf, outDir, verbose=False, format = "pdf"
 # a trial verison
 def make_predictions_cross_validation(scoreCalc, train, eval, clf):
 	_, data_train, targets_train = scoreCalc.toSklearnData(train)
+	networkDic = set([])
 
 	eval_names, data_eval, targets_eval = scoreCalc.toSklearnData(eval)
+	if len(eval_names) == 0: return networkDic
 
 	print "To pred"
 	print data_eval.shape
@@ -41,10 +43,9 @@ def make_predictions_cross_validation(scoreCalc, train, eval, clf):
 	tmp_clf = copy.deepcopy(clf)
 	tmp_clf.fit(data_train, targets_train)
 	probs, predicts = tmp_clf.predict_proba(data_eval), tmp_clf.predict(data_eval)
-	networkDic = {}
 	for index in range(len(probs)):
 		if predicts[index] == 1:
-			networkDic[eval_names[index]] = probs[index]
+			networkDic.add("%s\t%f" % (eval_names[index], probs[index]))
 	return networkDic
 
 # @author: Florian Goebels

@@ -22,6 +22,7 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir ):
 
 	#the global cluster will contain all clusters predcited from n-fold-corss validation
 	pred_all_clusters = GS.Clusters(False)
+	pred_all_ppis = set([])
 	complex_count = 0
 
 	for index in range(n_fold):
@@ -39,6 +40,14 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir ):
 		# utils.bench_clf(scoreCalc, train, eval, clf, output_dir, verbose=True)
 		# Predict protein interaction based on n_fold cross validation
 		network = utils.make_predictions_cross_validation(scoreCalc, train, eval, clf)
+
+		if len(network) == 0: continue
+
+		for ppi in network:
+			prota, protb, score =  ppi.split("\t")
+			edge = "\t".join(sorted([prota, protb]))
+			pred_all_ppis.add(edge)
+
 
 		netF = "%s.fold_%s.pred.txt" % (output_dir, index)
 		clustF = "%s.fold_%s.clust.txt" % (output_dir, index)
@@ -67,11 +76,16 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir ):
 	print "number of complexes"
 	print len(pred_all_clusters.get_complexes())
 
+	print "number of ppis"
+	print len(pred_all_ppis)
 
-	out_head, out_scores = "", ""
+	out_scores, out_head= "%i\t%i\t" % (len(pred_all_ppis), len(pred_all_clusters.get_complexes())), "Num_pred_PPIS\tNUM_pred_CLUST\t"
 	if len(pred_all_clusters.complexes)>0:
-		out_scores, out_head = utils.clustering_evaluation(all_gs.complexes, pred_all_clusters, "", True)
+		scores, head = utils.clustering_evaluation(all_gs.complexes, pred_all_clusters, "", True)
 
+
+	out_scores += scores
+	out_head += head
 	return out_scores, out_head
 
 
