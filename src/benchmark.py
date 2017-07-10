@@ -176,6 +176,8 @@ def merge_MS(args):
 
 def exp_comb(args):
 	FS, i, j, num_iter, input_dir, num_cores, ref_complexes, scoreF, fun_anno_F, output_dir = args
+	i,j, num_iter, num_cores = map(int, [i, j, num_iter, num_cores])
+
 
 	search_engine = input_dir.split(os.path.sep)[-2]
 	def get_eData_comb(data_dir, num_iex, num_beads):
@@ -195,44 +197,49 @@ def exp_comb(args):
 
 
 	# EPIC paramters
-	use_rf = True
 	if FS == "00000000": sys.exit()
 	this_scores = get_fs_comb(FS)
-	print this_scores
-	no_reference_overlap = False
-	fs = False
+	clf = CS.CLF_Wrapper(num_cores, True)
 
-	#global reference data set, since we don't want to compare with artifical smaller reference data set
-	foundprots, eDatas = utils.load_data(input_dir, [])
-	global_gs = Goldstandard_from_cluster_File(ref_complexes, foundprots)
+	ref_gs = Goldstandard_from_cluster_File(ref_complexes)
 
-	#eDataToprots = {}
-	#for eData in eDatas:
-	#	eDataToprots[eData.name] = set(eData.prot2Index.keys())
+	scoreCalc = CS.CalculateCoElutionScores(this_scores, "", scoreF, num_cores=num_cores, cutoff=0.5)
+	scoreCalc.readTable(scoreF, ref_gs)
 
-	i,j, num_iter, num_cores = map(int, [i, j, num_iter, num_cores])
+	# the supplied functional evidence data needs to have the correct header row...
+	externaldata = CS.ExternalEvidence(fun_anno_F)
+	functionalData = externaldata.getScoreCalc()
+
 	if i == 0 and j == 0: sys.exit()
 
 	out_head = ""
 	all_scores = []
 
-	fun_anno = utils.get_FA_data("FILE", fun_anno_F)
 	for iter in range(num_iter):
 		rnd.seed()
 		this_eprofiles = get_eData_comb(input_dir, i, j)
 		rnd.seed(1)
-		this_foundprots = set([])
-		#for eF in this_eprofiles:
-		#	this_foundprots |= eDataToprots[os.path.split(eF)[-1]]
+
+
 		print [f.split(os.sep)[-1] for f in this_eprofiles]
-		#this_foundprots, _ = utils.load_data(this_eprofiles, [])
-		head, scores = run_epic_with_feature_combinations(this_scores, this_eprofiles, num_cores, use_rf, scoreF, output_dir + ".%i_%i.%i" % (i, j, iter),
-														  no_reference_overlap, mode="comb", fun_anno=fun_anno, ref_complexes=ref_complexes, fs=fs, globalGS=global_gs)
+
+		this_foundprots, _ = utils.load_data(this_eprofiles, [])
+		print len(this_foundprots)
+
+		feature_comb = feature_selector([fs.name for fs in this_scores], scoreCalc, this_foundprots)
+	#	feature_comb.add_fun_anno(functionalData)
+
+		print feature_comb.scoreCalc.scores.shape
+		print scoreCalc.scores.shape
+
+		scores, head =  n_fold_cross_validation(10, ref_gs, feature_comb, clf, output_dir)
+
+	#	head, scores = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir, valprots=this_foundprots)
 		print len(this_foundprots)
 		out_head = head
 		all_scores.append("%i\t%i\t%s\t%i\t%s" % (i,j,search_engine, len(this_foundprots), scores))
-#		print head
-#		print scores
+		print head
+		print scores
 
 
 	outFH = open(output_dir + ".%i_%i.all.eval.txt" % (i, j), "w")
@@ -445,6 +452,9 @@ class feature_selector:
 		self.to_keep_header = [0, 1]
 		self.to_keep_score = []
 
+	#	fa_names = set(["evidence%i" % i for i in range(1,13)])
+	#	all_names = set(feature_names) | set (fa_names)
+
 		for i in range(2, len(header)):
 			colname = header[i]
 			scorename = colname.split(".")[-1]
@@ -469,6 +479,8 @@ class feature_selector:
 		ppi_index = 0
 		for i in range(scoreCalc.scores.shape[0]):
 			ppi = scoreCalc.IndexToPpi[i]
+			protA, protB = ppi.split("\t")
+			if (protA not in self.valprots or protB not in self.valprots) and self.valprots != []: continue
 			ppi_scores = self.filter_score(scoreCalc.scores[i, :])
 			if ppi_scores ==[]: continue
 			filtered_sc.ppiToIndex[ppi] = ppi_index
@@ -537,18 +549,11 @@ def bench_Bayes(args):
 
 	print "%s\n%s" % (out_head, "\n".join(out_scores))
 
-def run_epic_with_feature_combinations(feature_combination, ref_GS, scoreCalc, clf,  output_dir):
-	print scoreCalc.scores.shape
-	print "Num valid filterd ppis: %i" % len(set(scoreCalc.ppiToIndex.keys()))
-	print "Num valid all pos: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(ref_GS.positive))
-	print "Num valid all negative: %i" % len(set(scoreCalc.ppiToIndex.keys()) & set(ref_GS.negative))
-	#all_gs.make_pos_neg_ppis(val_ppis=set(scoreCalc.ppiToIndex.keys()))
-	feature_comb = feature_selector([fs.name for fs in feature_combination], scoreCalc, [])
+def run_epic_with_feature_combinations(feature_combination, ref_GS, scoreCalc, clf,  output_dir, valprots = []):
+	feature_comb = feature_selector([fs.name for fs in feature_combination], scoreCalc, valprots)
 	print feature_comb.scoreCalc.scores.shape
 	print scoreCalc.scores.shape
 
-
-	out_prefix = "_".join([fs.name for fs in feature_combination])
 	return n_fold_cross_validation(10, ref_GS, feature_comb, clf, output_dir)
 
 def calc_feature_combination(args):
