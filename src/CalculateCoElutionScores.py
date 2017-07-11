@@ -32,6 +32,10 @@ import re
 import gzip
 import requests
 
+from keras.models import Sequential, Model
+from keras.layers import Dense, Dropout, Input
+from keras import regularizers
+
 np.random.seed(1)
 
 
@@ -84,6 +88,10 @@ def getScore(inputQ, outputList):
 		else:
 			outputList.put((score_index, 0.0))
 		inputQ.task_done()
+
+
+
+
 
 #Contacts:
 #	Florian Goebels - florian.goebels@gmail.com
@@ -1032,7 +1040,61 @@ class CLF_Wrapper:
 	def predict(self, toPred):
 		preds = self.clf.predict(toPred)
 		return preds
-	
+
+class MLP_wrapper(object):
+
+
+	def __init__(self):
+		print "Using MLP with Keras/tensorflow"
+		self.model = Sequential()
+
+	def fit(self, data, labels):
+		num_features = data.shape[1]
+		self.model.add(Dense(512, input_dim=num_features, activation='relu'))
+		self.model.add(Dropout(0.5))
+		self.model.add(Dense(512, activation='relu'))
+		self.model.add(Dropout(0.5))
+		self.model.add(Dense(1, activation='sigmoid'))
+		self.model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
+		self.model.fit(data, labels, epochs=500, batch_size=128)
+
+	def eval(self, data, labels):
+		return self.model.evaluate(data, labels)
+
+	def predict_proba(self, toPred):
+		return [x[0] for x in self.model.predict(toPred)]
+
+	def predict(self, toPred):
+		return [round(x[0]) for x in self.model.predict(toPred)]
+
+class SAE_wrapper(MLP_wrapper):
+
+	def __init__(self):
+		print "Using stacked autoencoder"
+
+
+	def fit(self, data, labels):
+		print data.shape
+		print len(labels)
+		num_features = data.shape[1]
+		input = Input(shape=(num_features,))
+
+		hidden_layer1 = 1250
+		hidden_layer2 = 600
+		hidden_layer3 = 100
+		hidden_layer4 = 1
+
+		encoded = Dense(hidden_layer1, activation='relu')(input)
+		encoded = Dense(hidden_layer2, activation='relu')(encoded)
+		encoded = Dense(hidden_layer3, activation='relu', activity_regularizer=regularizers.l1(10e-5))(encoded)
+		encoded = Dense(hidden_layer4, activation='sigmoid')(encoded)
+
+		self.model = Model(input=input, output=encoded)
+
+		self.model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+
+		self.model.fit(data, labels, epochs=20, batch_size=500, shuffle=True)
+
 # @ author: Lucas Ming Hu
 # This is a helper function can help users to read their personal evidence file as extra functional evidence and integrate into the pipeline.
 class ExternalEvidence:

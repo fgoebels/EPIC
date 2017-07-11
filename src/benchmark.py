@@ -41,7 +41,9 @@ def n_fold_cross_validation(n_fold, all_gs, scoreCalc, clf, output_dir ):
 		# Predict protein interaction based on n_fold cross validation
 		network = utils.make_predictions_cross_validation(scoreCalc, train, eval, clf)
 
-		if len(network) == 0: continue
+		if len(network) == 0:
+			print "No edges were predicted"
+			continue
 
 		for ppi in network:
 			prota, protb, score =  ppi.split("\t")
@@ -567,16 +569,44 @@ def calc_feature_combination(args):
 	clf_name = "SVM"
 	if use_rf: clf_name = "RF"
 
-	clf = CS.CLF_Wrapper(num_cores, use_rf)
+	clf = CS.SAE_wrapper() #CS.MLP_wrapper() #CS.CLF_Wrapper(num_cores, use_rf)
 
-#	foundprots, elution_datas = utils.load_data(input_dir, [])
+	foundprots, elution_datas = utils.load_data(input_dir, [])
 	ref_gs = Goldstandard_from_cluster_File(ref_complexes)
 
+	head, all_e_scores = utils.elutionDatas_to_treeview(elution_datas, foundprots)
 
 	scoreCalc = CS.CalculateCoElutionScores(this_scores, "", scoreF, num_cores=num_cores, cutoff=0.5)
-	scoreCalc.readTable(scoreF, ref_gs)
 
-	scores, head = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir)
+	num_fracs =  len(all_e_scores[all_e_scores.keys()[0]])
+	scoreCalc.ppiToIndex = {}
+	scoreCalc.IndexToPpi = {}
+	scoreCalc.scores = np.zeros((len(ref_gs.positive | ref_gs.negative), 2*num_fracs))
+	ppi_index = 0
+
+	print len(ref_gs.positive)
+
+	print len(ref_gs.negative)
+
+	for ppi in ref_gs.positive | ref_gs.negative:
+		protA, protB = ppi.split("\t")
+		if protA not in all_e_scores or protB not in all_e_scores: continue
+		edge_e_counts = []
+		edge_e_counts.extend(all_e_scores[protA])
+		edge_e_counts.extend(all_e_scores[protB])
+		scoreCalc.scores
+		scoreCalc.scores[ppi_index, :] = edge_e_counts
+		scoreCalc.ppiToIndex[ppi] = ppi_index
+		scoreCalc.IndexToPpi[ppi_index] = ppi
+		ppi_index += 1
+	scoreCalc.scores = scoreCalc.scores[0:ppi_index,:]
+	print scoreCalc.scores.shape
+
+#	scoreCalc.readTable(scoreF, ref_gs)
+
+#	scores, head = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir)
+
+	scores, head = n_fold_cross_validation(10, ref_gs, scoreCalc, clf, output_dir)
 
 	outFH = open(output_dir + ".eval.txt" , "w")
 	se = input_dir.split(os.sep)[-2]
