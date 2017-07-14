@@ -571,13 +571,14 @@ def calc_feature_combination(args):
 
 	clf = CS.CLF_Wrapper(num_cores, use_rf) #OPTIONS: # CS.SAE_wrapper() #CS.MLP_wrapper() #CS.CLF_Wrapper(num_cores, use_rf)
 
-	foundprots, elution_datas = utils.load_data(input_dir, [])
+#	foundprots, elution_datas = utils.load_data(input_dir, [])
 	ref_gs = Goldstandard_from_cluster_File(ref_complexes)
 
-	head, all_e_scores = utils.elutionDatas_to_treeview(elution_datas, foundprots)
 
 	scoreCalc = CS.CalculateCoElutionScores(this_scores, "", scoreF, num_cores=num_cores, cutoff=0.5)
 
+	"""
+	head, all_e_scores = utils.elutionDatas_to_treeview(elution_datas, foundprots)
 	num_fracs =  len(all_e_scores[all_e_scores.keys()[0]])
 	scoreCalc.ppiToIndex = {}
 	scoreCalc.IndexToPpi = {}
@@ -601,12 +602,12 @@ def calc_feature_combination(args):
 		ppi_index += 1
 	scoreCalc.scores = scoreCalc.scores[0:ppi_index,:]
 	print scoreCalc.scores.shape
+	"""
+	scoreCalc.readTable(scoreF, ref_gs)
 
-#	scoreCalc.readTable(scoreF, ref_gs)
+	scores, head = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir)
 
-#	scores, head = run_epic_with_feature_combinations(this_scores, ref_gs, scoreCalc, clf, output_dir)
-
-	scores, head = n_fold_cross_validation(10, ref_gs, scoreCalc, clf, output_dir)
+#	scores, head = n_fold_cross_validation(10, ref_gs, scoreCalc, clf, output_dir)
 
 	outFH = open(output_dir + ".eval.txt" , "w")
 	se = input_dir.split(os.sep)[-2]
