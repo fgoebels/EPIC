@@ -32,9 +32,9 @@ import re
 import gzip
 import requests
 
-from keras.models import Sequential, Model
-from keras.layers import Dense, Dropout, Input
-from keras import regularizers
+#from keras.models import Sequential, Model
+#from keras.layers import Dense, Dropout, Input
+#from keras import regularizers
 
 np.random.seed(1)
 

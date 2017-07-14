@@ -12,6 +12,11 @@ import random as rnd
 rnd.seed(1)
 np.random.seed(1)
 
+# CORUM database got changed, so need to use new way to read the original database...
+from StringIO import StringIO
+from zipfile import ZipFile
+from urllib import urlopen
+
 class Goldstandard_from_Complexes():
 
 	def __init__(self, name="unnamed", ratio = 5):
@@ -375,9 +380,21 @@ class CORUM():
 	# downloads current version of corum and safe it to wd/data folder as corum.txt
 	def getCORUM(self):
 		self.corum_raw = {}
-		corum_url = "http://mips.helmholtz-muenchen.de/corum/download/allComplexes.txt"
-		corum_url_FH = urllib2.urlopen(corum_url)
-		for line in corum_url_FH:
+
+		#corum_url = "http://mips.helmholtz-muenchen.de/corum/download/allComplexes.txt"
+		#corum_url_FH = urllib2.urlopen(corum_url)
+		#for line in corum_url_FH:
+		#	line = line.rstrip()
+		#	linesplit = np.array(line.split("\t"))
+		#	corum_id = linesplit[0]
+		#	self.corum_raw[corum_id] = linesplit[(2,5,7),]
+
+		#Note, I changed the above part, coz the CORUM database deleted the above link, we need new ways to open it ...Lucas
+		corum_url = "http://mips.helmholtz-muenchen.de/corum/download/coreComplexes.txt.zip"
+
+		url = urlopen(corum_url)
+		zipfile = ZipFile(StringIO(url.read()))
+		for line in zipfile.open("coreComplexes.txt").readlines():
 			line = line.rstrip()
 			linesplit = np.array(line.split("\t"))
 			corum_id = linesplit[0]
