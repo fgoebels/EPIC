@@ -569,7 +569,7 @@ def calc_feature_combination(args):
 	clf_name = "SVM"
 	if use_rf: clf_name = "RF"
 
-	clf = CS.SAE_wrapper() #CS.MLP_wrapper() #CS.CLF_Wrapper(num_cores, use_rf)
+	clf = CS.CLF_Wrapper(num_cores, use_rf) #OPTIONS: # CS.SAE_wrapper() #CS.MLP_wrapper() #CS.CLF_Wrapper(num_cores, use_rf)
 
 	foundprots, elution_datas = utils.load_data(input_dir, [])
 	ref_gs = Goldstandard_from_cluster_File(ref_complexes)
@@ -654,11 +654,24 @@ def orth_map(args):
 	outFH.write(clust.to_string())
 	outFH.close()
 
+def calc_scores(args):
+	fs, numcores, cutoff, e_dir, outF = args
+	numcores = int(numcores)
+	cutoff = float(cutoff)
+
+	this_fs = get_fs_comb(fs)
+	prots, edatas = utils.load_data(e_dir, this_fs)
+	scoreCalc = CS.CalculateCoElutionScores(this_fs, edatas, outF, num_cores=numcores, cutoff=cutoff)
+	scoreCalc.calculate_coelutionDatas("")
+
 def main():
 	mode = sys.argv[1]
 
 	if mode == "-fs":
 		calc_feature_combination(sys.argv[2:])
+
+	elif mode == "-calc_s":
+		calc_scores(sys.argv[2:])
 
 	elif mode == "-make_ref":
 		write_reference(sys.argv[2:])

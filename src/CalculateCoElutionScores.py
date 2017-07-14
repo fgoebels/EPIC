@@ -1040,7 +1040,7 @@ class CLF_Wrapper:
 	def predict(self, toPred):
 		preds = self.clf.predict(toPred)
 		return preds
-
+"""
 class MLP_wrapper(object):
 
 
@@ -1094,6 +1094,10 @@ class SAE_wrapper(MLP_wrapper):
 		self.model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
 
 		self.model.fit(data, labels, epochs=20, batch_size=500, shuffle=True)
+"""
+
+
+
 
 # @ author: Lucas Ming Hu
 # This is a helper function can help users to read their personal evidence file as extra functional evidence and integrate into the pipeline.
