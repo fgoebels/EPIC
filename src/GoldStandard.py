@@ -389,12 +389,12 @@ class CORUM():
 		#	corum_id = linesplit[0]
 		#	self.corum_raw[corum_id] = linesplit[(2,5,7),]
 
-		#Note, I changed the above part, coz the CORUM database deleted the above link, we need new ways to open it ...Lucas
-		corum_url = "http://mips.helmholtz-muenchen.de/corum/download/coreComplexes.txt.zip"
+		#Note, I changed the above part, coz the CORUM database deleted the above link, we need new ways to open it --- Lucas
+		corum_url = "http://mips.helmholtz-muenchen.de/corum/download/allComplexes.txt.zip"
 
 		url = urlopen(corum_url)
 		zipfile = ZipFile(StringIO(url.read()))
-		for line in zipfile.open("coreComplexes.txt").readlines():
+		for line in zipfile.open("allComplexes.txt").readlines():
 			line = line.rstrip()
 			linesplit = np.array(line.split("\t"))
 			corum_id = linesplit[0]
