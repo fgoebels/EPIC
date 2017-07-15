@@ -663,7 +663,7 @@ def calc_scores(args):
 	this_fs = get_fs_comb(fs)
 	prots, edatas = utils.load_data(e_dir, this_fs)
 	scoreCalc = CS.CalculateCoElutionScores(this_fs, edatas, outF, num_cores=numcores, cutoff=cutoff)
-	scoreCalc.calculate_coelutionDatas("")
+	scoreCalc.calculate_coelutionDatas()
 
 def main():
 	mode = sys.argv[1]

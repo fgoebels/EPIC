@@ -916,9 +916,12 @@ class CalculateCoElutionScores():
 		print("Num of PPIs across all data stes after filtering %i" % (len(allfilteredPPIs)))
 		return allfilteredPPIs
 
-	def calculate_coelutionDatas(self, gs):
+	def calculate_coelutionDatas(self, gs=""):
 		toPred = self.getAllPairs()
-		self.calculateScores(toPred, gs.get_edges())
+		if gs !="":
+			self.calculateScores(toPred, gs.get_edges())
+		else:
+			self.calculateScores(toPred)
 
 	# @author: Florian Goebels
 	# prints table
